@@ -1,0 +1,24 @@
+{
+    "name": "shared.io",
+    "version": "0.0.0",
+    "description": "Object-oriented websocket",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "scripts": {
+        "build": "tsc",
+        "lint": "eslint --ignore-path .gitignore --ext .js,.jsx,.ts,.tsx .",
+        "lint:fix": "eslint --fix --ignore-path .gitignore --ext .js,.jsx,.ts,.tsx .",
+        "format": "prettier --write ."
+    },
+    "keywords": [
+        "socket",
+        "websocket",
+        "real-time",
+        "shared state",
+        "oop"
+    ],
+    "author": "ThalesQwerty",
+    "license": "ISC",
+    "devDependencies": {},
+    "dependencies": {}
+}

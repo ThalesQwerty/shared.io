@@ -7,6 +7,7 @@ export class CustomEventEmitter<EventList extends GenericEventList> extends Even
 export interface CustomEventEmitter<EventList extends GenericEventList> extends EventEmitter {
     on: <name extends keyof EventList>(event: name, listener: EventList[name]) => this;
     once: <name extends keyof EventList>(event: name, listener: EventList[name]) => this;
+    addListener: <name extends keyof EventList>(event: name, listener: EventList[name]) => this;
     removeListener: <name extends keyof EventList>(event: name, listener: EventList[name]) => this;
     prependListener: <name extends keyof EventList>(event: name, listener: EventList[name]) => this;
     emit: (event: keyof EventList, parameters: (Parameters<EventList[typeof event]>[0])) => boolean;

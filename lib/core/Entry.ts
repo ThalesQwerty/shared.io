@@ -1,12 +1,19 @@
-import { EventEmitter } from "node:events";
-import { Client, KeyValue, ProxyController } from ".";
+import { Client, ProxyController } from ".";
+import { CustomEventEmitter, CustomEvent } from "../.";
+
+type EntryEvents<T = any> = {
+    change: (parameters: {entry: Entry, key: string, oldValue: T|null, newValue: T|null}) => void;
+    delete: (parameters: {entry: Entry, key: string, oldValue: T|null}) => void;
+}
+
+export type EntryEvent<name extends keyof EntryEvents> = CustomEvent<EntryEvents, name>;
 
 /**
  * Manages a single entry of the server's shared state.
  *
  * Clients subscribed to an entry will receive updates whenever the stored value changes.
  */
-export class Entry<T = any> extends EventEmitter {
+export class Entry<T = any> extends CustomEventEmitter<EntryEvents<T>> {
     public readonly key: string;
     public readonly subscribers: Client[] = [];
     private value: T|null = null;
@@ -34,13 +41,13 @@ export class Entry<T = any> extends EventEmitter {
      * Writes a new value of this entry
      * @param broadcast Should it notify the subscribers right afterwards? Default is `true`.
      */
-    public write(newValue: T, broadcast: boolean = true) {
+    public write(newValue: T|null, broadcast: boolean = true) {
         const oldValue = this.value;
         const hasChanged = newValue !== oldValue;
 
         if (hasChanged) {
             this.value = newValue ?? null;
-            this.emit("change", { entry: this, oldValue, newValue });
+            this.emit("change", { entry: this, key: this.key, oldValue, newValue });
 
             if (broadcast) this.broadcast();
         }
@@ -52,7 +59,7 @@ export class Entry<T = any> extends EventEmitter {
     public delete() {
         const oldValue = this.value;
         this.write(null as any);
-        this.emit("delete", { entry: this, oldValue });
+        this.emit("delete", { entry: this, key: this.key, oldValue });
     }
 
     /**
@@ -103,24 +110,8 @@ export class Entry<T = any> extends EventEmitter {
         return true;
     }
 
-    constructor(key: string, initialValue?: T) {
+    constructor(key: string) {
         super();
         this.key = key;
-        this.value = initialValue ?? null;
     }
-}
-
-export interface Entry<T = any> extends EventEmitter {
-    on: <K extends keyof EntryEvents<T>>(event: K, listener: EntryEvents<T>[K]) => this;
-    once: <K extends keyof EntryEvents<T>>(event: K, listener: EntryEvents<T>[K]) => this;
-    removeListener: <K extends keyof EntryEvents<T>>(event: K, listener: EntryEvents[K]) => this;
-    emit: (event: keyof EntryEvents<T>, parameters: EntryEvent<typeof event>) => boolean;
-    removeAllListeners: (event?: keyof EntryEvents<T>) => this;
-}
-
-export type EntryEvent<name extends keyof EntryEvents> = Parameters<EntryEvents[name]>[0];
-
-type EntryEvents<T = any> = {
-    change: (parameters: {entry: Entry, oldValue: T|null, newValue: T|null}) => void;
-    delete: (parameters: {entry: Entry, oldValue: T|null}) => void;
 }

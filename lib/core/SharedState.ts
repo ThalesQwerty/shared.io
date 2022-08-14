@@ -1,10 +1,24 @@
-import { Client, Server, Entry, KeyValue, UUID, ProxyController } from ".";
+import { EventEmitter } from "node:events";
+import { Client, Server, Entry, ProxyController } from ".";
+import { CustomEvent, CustomEventEmitter, KeyValue } from "../.";
+
+type SharedStateEvents = {
+    write: (parameters: {entry: Entry, key: string, oldValue: any, newValue: any}) => void;
+    delete: (parameters: {entry: Entry, key: string, oldValue: any}) => void;
+}
+
+export type SharedStateEvent<name extends keyof SharedStateEvents> = CustomEvent<SharedStateEvents, name>;
 
 /**
  * Manages the server's shared state
  */
-export class State {
+export class SharedState extends CustomEventEmitter<SharedStateEvents> {
     public readonly entries: KeyValue<Entry> = {};
+
+    /**
+     * Traces nested objects to prevent circular references
+     */
+    private readonly objectTracer: Object[] = [];
 
     /**
      * Returns all the entries listed in an array
@@ -36,6 +50,8 @@ export class State {
      * Finds an entry by its key and writes a value into it. If entry is not present, creates a new entry containing this value.
      */
     public write<T = any>(key: string, value: T) {
+        let returnedValue: T;
+
         const oldValue = this.read(key);
 
         const applyPrefix = (subkey: string, hasFallback: boolean = true) => {
@@ -77,13 +93,18 @@ export class State {
             const { proxy } = proxyController;
 
             for (const subkey in value) {
-                if (value[subkey] !== this as any) {
-                    this.write(applyPrefix(subkey), value[subkey]);
+                const subvalue = value[subkey];
+                if (subvalue !== this as any && !this.objectTracer.includes(subvalue)) {
+                    this.objectTracer.push(subvalue);
+                    this.write(applyPrefix(subkey), subvalue);
                 }
             }
 
-            const entry = this.entries[key] ??= new Entry(key, proxy);
+            this.objectTracer.splice(0, this.objectTracer.length);
+
+            const entry = this.entries[key] ??= new Entry(key);
             entry.proxy?.disconnect();
+            entry.on("change", event => this.emit("write", event));
             entry.write(proxy);
             entry.proxy = proxyController;
 
@@ -93,9 +114,10 @@ export class State {
                 }
             }
 
-            return proxy as T;
+            returnedValue = proxy as T;
         } else {
-            const entry = this.entries[key] ??= new Entry(key, value);
+            const entry = this.entries[key] ??= new Entry(key);
+            entry.on("change", event => this.emit("write", event));
             entry.write(value);
 
             if (oldValue instanceof Object) {
@@ -104,8 +126,10 @@ export class State {
                 }
             }
 
-            return value;
+            returnedValue = value;
         }
+
+        return returnedValue;
     }
 
     /**
@@ -119,6 +143,16 @@ export class State {
             entry.delete();
             delete this.entries[key];
         }
+    }
+
+    /**
+     * Deletes all entries and removes all event listeners associated with the shared state
+     */
+    public clear() {
+        for (const key in this.entries) {
+            this.delete(key);
+        }
+        this.removeAllListeners();
     }
 
     /**
@@ -150,5 +184,9 @@ export class State {
         return object;
     }
 
-    constructor (public readonly server: Server) {}
+    constructor (public readonly server: Server) {
+        super();
+    }
 }
+
+

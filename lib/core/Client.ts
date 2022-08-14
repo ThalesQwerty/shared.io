@@ -1,6 +1,5 @@
-import { v4 as uuid } from "uuid";
-import { HasId } from "./Id";
-import { KeyValue } from "./KeyValue";
+import { HasId } from ".";
+import { KeyValue } from "../.";
 
 /**
  * Represents a websocket client connected to a SharedIO server

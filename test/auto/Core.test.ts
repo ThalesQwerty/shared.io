@@ -1,5 +1,4 @@
-import { State, Client } from "../../lib";
-import { Server } from "../../lib/core/Server";
+import { Client, EntryEvent, KeyValue, Server } from "../../lib";
 
 describe("Shared state", () => {
     it ("Lists the entries", () => {
@@ -8,7 +7,6 @@ describe("Shared state", () => {
         state.write("name", "Thales");
         state.write("age", 21);
         state.write("gender", "Male");
-        state.write("hobbies", ["Programming", "Game development", "Music", "Math"]);
         state.write("verified", true);
         state.write("nothing", null);
 
@@ -22,9 +20,6 @@ describe("Shared state", () => {
 
         expect(entries.gender.key).toBe("gender");
         expect(entries.gender.read()).toBe("Male");
-
-        expect(entries.hobbies.key).toBe("hobbies");
-        expect(entries.hobbies.read()).toEqual(["Programming", "Game development", "Music", "Math"]);
 
         expect(entries.verified.key).toBe("verified");
         expect(entries.verified.read()).toBe(true);
@@ -54,6 +49,166 @@ describe("Shared state", () => {
         expect(nameEntry.read()).toBeNull();
     });
 
+    it ("Deals correctly with objects", () => {
+        const state = new Server().state;
+        const { entries } = state;
+
+        const object = {a: 1, b: 2, c: 3, deep: { nested: 4 }};
+        let lastChange:EntryEvent<"change">|null = null;
+
+        const proxy:KeyValue= state.write("object", object);
+
+        expect(entries.object.read()).toEqual({a: 1, b: 2, c: 3, deep: { nested: 4 }});
+        expect(entries["object.a"].read()).toBe(1);
+        expect(entries["object.b"].read()).toBe(2);
+        expect(entries["object.c"].read()).toBe(3);
+        expect(entries["object.deep"].read()).toEqual({ nested: 4 });
+        expect(entries["object.deep.nested"].read()).toBe(4);
+
+        state.listEntries().forEach(entry => entry.on("change", event => lastChange = event));
+
+        proxy.a = 10;
+        expect(lastChange).toEqual({ entry: state.entries["object.a"], oldValue: 1, newValue: 10 });
+
+        const entryB = state.entries["object.b"];
+        delete proxy.b;
+        expect(lastChange).toEqual({ entry: entryB, oldValue: 2, newValue: null });
+        expect(entries["object.b"]).toBeUndefined()
+
+        proxy.deep.nested = 40;
+        expect(lastChange).toEqual({ entry: state.entries["object.deep.nested"], oldValue: 4, newValue: 40 });
+
+        proxy.deep.new = 50;
+        expect(entries["object.deep.new"].read()).toBe(50);
+
+        delete proxy.deep;
+        expect(entries["object.deep"]).toBeUndefined();
+        expect(entries["object.deep.nested"]).toBeUndefined();
+        expect(entries["object.deep.new"]).toBeUndefined();
+
+        expect(entries.object.read()).toEqual({a: 10, c: 3});
+
+        const newObject: KeyValue = {x: 1, y: 2, z: 3};
+
+        const newProxy = state.write("object", newObject);
+        expect(entries.object.read()).toEqual({x: 1, y: 2, z: 3});
+        expect(entries["object.a"]).toBeUndefined();
+        expect(entries["object.c"]).toBeUndefined();
+        expect(entries["object.x"].read()).toBe(1);
+        expect(entries["object.y"].read()).toBe(2);
+        expect(entries["object.z"].read()).toBe(3);
+
+        state.listEntries().forEach(entry => entry.on("change", event => lastChange = event));
+
+        newProxy.x = 10;
+        expect(lastChange).toEqual({ entry: state.entries["object.x"], oldValue: 1, newValue: 10 });
+
+        const entryY = state.entries["object.y"];
+        delete newProxy.y;
+        expect(lastChange).toEqual({ entry: entryY, oldValue: 2, newValue: null });
+
+        newProxy.z = {
+            a: 1
+        };
+        expect(lastChange).toEqual({ entry: state.entries["object.z"], oldValue: 3, newValue: { a: 1 } });
+        expect(entries["object.z"].read()).toEqual({ a: 1 });
+        expect(entries["object.z.a"].read()).toBe(1);
+
+        state.listEntries().forEach(entry => entry.on("change", event => lastChange = event));
+
+        newProxy.z.a = 10;
+        expect(lastChange).toEqual({ entry: state.entries["object.z.a"], oldValue: 1, newValue: 10 });
+
+        // old proxy should be revoked
+        proxy.a = 30;
+        expect(entries["object.a"]).toBeUndefined();
+        expect(lastChange).toEqual({ entry: state.entries["object.z.a"], oldValue: 1, newValue: 10 });
+    });
+
+    it ("Deals correctly with arrays", () => {
+        const state = new Server().state;
+        const { entries } = state;
+
+        const array = [0, 1, 2, 3, 4];
+
+        const proxy = state.write("array", array);
+        expect(entries.array.read()).toEqual([0, 1, 2, 3, 4]);
+        expect(entries["array.0"].read()).toBe(0);
+        expect(entries["array.1"].read()).toBe(1);
+        expect(entries["array.2"].read()).toBe(2);
+        expect(entries["array.3"].read()).toBe(3);
+        expect(entries["array.4"].read()).toBe(4);
+        expect(entries["array.5"]).toBeUndefined();
+
+        proxy.push(5);
+        expect(entries.array.read()).toEqual([0, 1, 2, 3, 4, 5]);
+        expect(entries["array.0"].read()).toBe(0);
+        expect(entries["array.1"].read()).toBe(1);
+        expect(entries["array.2"].read()).toBe(2);
+        expect(entries["array.3"].read()).toBe(3);
+        expect(entries["array.4"].read()).toBe(4);
+        expect(entries["array.5"].read()).toBe(5);
+
+        proxy.unshift(-1);
+        expect(entries.array.read()).toEqual([-1, 0, 1, 2, 3, 4, 5]);
+        expect(entries["array.0"].read()).toBe(-1);
+        expect(entries["array.1"].read()).toBe(0);
+        expect(entries["array.2"].read()).toBe(1);
+        expect(entries["array.3"].read()).toBe(2);
+        expect(entries["array.4"].read()).toBe(3);
+        expect(entries["array.5"].read()).toBe(4);
+        expect(entries["array.6"].read()).toBe(5);
+
+        proxy.pop();
+        expect(entries.array.read()).toEqual([-1, 0, 1, 2, 3, 4]);
+        expect(entries["array.0"].read()).toBe(-1);
+        expect(entries["array.1"].read()).toBe(0);
+        expect(entries["array.2"].read()).toBe(1);
+        expect(entries["array.3"].read()).toBe(2);
+        expect(entries["array.4"].read()).toBe(3);
+        expect(entries["array.5"].read()).toBe(4);
+
+        proxy.shift();
+        expect(entries.array.read()).toEqual([0, 1, 2, 3, 4]);
+        expect(entries["array.0"].read()).toBe(0);
+        expect(entries["array.1"].read()).toBe(1);
+        expect(entries["array.2"].read()).toBe(2);
+        expect(entries["array.3"].read()).toBe(3);
+        expect(entries["array.4"].read()).toBe(4);
+
+        proxy.reverse();
+        expect(entries.array.read()).toEqual([4, 3, 2, 1, 0]);
+        expect(entries["array.0"].read()).toBe(4);
+        expect(entries["array.1"].read()).toBe(3);
+        expect(entries["array.2"].read()).toBe(2);
+        expect(entries["array.3"].read()).toBe(1);
+        expect(entries["array.4"].read()).toBe(0);
+
+        const newArray = [1.69, 3.14, 2.78, 1.41];
+        const newProxy = state.write("array", newArray);
+
+        expect(entries.array.read()).toEqual([1.69, 3.14, 2.78, 1.41]);
+        expect(entries["array.0"].read()).toBe(1.69);
+        expect(entries["array.1"].read()).toBe(3.14);
+        expect(entries["array.2"].read()).toBe(2.78);
+        expect(entries["array.3"].read()).toBe(1.41);
+        expect(entries["array.4"]).toBeUndefined();
+
+        newProxy.sort();
+        expect(entries.array.read()).toEqual([1.41, 1.69, 2.78, 3.14]);
+        expect(entries["array.0"].read()).toBe(1.41);
+        expect(entries["array.1"].read()).toBe(1.69);
+        expect(entries["array.2"].read()).toBe(2.78);
+        expect(entries["array.3"].read()).toBe(3.14);
+
+        newProxy.splice(1, 2);
+        expect(entries.array.read()).toEqual([1.41, 3.14]);
+        expect(entries["array.0"].read()).toBe(1.41);
+        expect(entries["array.1"].read()).toBe(3.14);
+        expect(entries["array.2"]).toBeUndefined();
+        expect(entries["array.3"]).toBeUndefined();
+    });
+
     it ("Adds and removes subscribers", () => {
         const state = new Server().state;
         const { entries } = state;
@@ -63,7 +218,7 @@ describe("Shared state", () => {
         const charles = new Client();
 
         state.write("entry", 0);
-        const { entry } = state.entries;
+        const { entry } = entries;
 
         expect(entry.subscribers).toEqual([]);
 
@@ -154,12 +309,12 @@ describe("Shared state", () => {
 
         alice.send = function(...params: Parameters<Client["send"]>) {
             messagesSent.alice ++;
-            Client.prototype.send.call(this, ...params);
+            // Client.prototype.send.call(this, ...params);
         }
 
         bob.send = function(...params: Parameters<Client["send"]>) {
             messagesSent.bob ++;
-            Client.prototype.send.call(this, ...params);
+            // Client.prototype.send.call(this, ...params);
         }
 
         state.write("public", 0);
@@ -195,42 +350,58 @@ describe("Shared state", () => {
         const state = new Server().state;
 
         let totalChanges = 0;
-        const alice = new Client();
-
-        alice.send = function(...params: Parameters<Client["send"]>) {
-            totalChanges ++;
-            Client.prototype.send.call(this, ...params);
-        }
+        let oldValue = 0;
+        let newValue = 0;
 
         state.write("entry", 0);
         const { entry } = state.entries;
 
-        expect(totalChanges).toBe(0);
+        entry.on("change", event => {
+            totalChanges ++;
+            oldValue = event.oldValue;
+            newValue = event.newValue;
+        });
 
-        entry.addSubscriber(alice);
+        expect(totalChanges).toBe(0);
 
         entry.write(0);
         expect(totalChanges).toBe(0);
+        expect(oldValue).toBe(0);
+        expect(newValue).toBe(0);
 
         entry.write(1);
         expect(totalChanges).toBe(1);
+        expect(oldValue).toBe(0);
+        expect(newValue).toBe(1);
 
         entry.write(0);
         expect(totalChanges).toBe(2);
+        expect(oldValue).toBe(1);
+        expect(newValue).toBe(0);
 
         entry.write("0");
         expect(totalChanges).toBe(3);
+        expect(oldValue).toBe(0);
+        expect(newValue).toBe("0");
 
         entry.write(false);
         expect(totalChanges).toBe(4);
+        expect(oldValue).toBe("0");
+        expect(newValue).toBe(false);
 
         entry.write(false);
         expect(totalChanges).toBe(4);
+        expect(oldValue).toBe("0");
+        expect(newValue).toBe(false);
 
         entry.write(false);
         expect(totalChanges).toBe(4);
+        expect(oldValue).toBe("0");
+        expect(newValue).toBe(false);
 
         entry.write(null);
         expect(totalChanges).toBe(5);
+        expect(oldValue).toBe(false);
+        expect(newValue).toBe(null);
     });
 });

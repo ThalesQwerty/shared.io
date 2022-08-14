@@ -3,9 +3,11 @@ import { Client, Server, Entry, ProxyController } from ".";
 import { CustomEvent, CustomEventEmitter, KeyValue } from "../.";
 
 type SharedStateEvents = {
-    write: (parameters: {entry: Entry, key: string, oldValue: any, newValue: any}) => void;
-    delete: (parameters: {entry: Entry, key: string, oldValue: any}) => void;
-}
+    write: (event: { entry: Entry, key: string, oldValue: any, newValue: any }) => void;
+    delete: (event: { entry: Entry, key: string, oldValue: any }) => void;
+    create: (event: { entry: Entry, key: string }) => void;
+    change: (event: { changes: KeyValue }) => void;
+};
 
 export type SharedStateEvent<name extends keyof SharedStateEvents> = CustomEvent<SharedStateEvents, name>;
 
@@ -18,7 +20,32 @@ export class SharedState extends CustomEventEmitter<SharedStateEvents> {
     /**
      * Traces nested objects to prevent circular references
      */
-    private readonly objectTracer: Object[] = [];
+    private readonly objectTracer: {object: Object, proxy: Object}[] = [];
+
+    private changes: KeyValue = {};
+
+    private get hasChanges() { return !!Object.keys(this.changes).length };
+
+    constructor(public readonly server: Server) {
+        super();
+        this.setup();
+    }
+
+    private setup() {
+        const dispatchChangeEvent = () => {
+            if (!this.hasChanges) {
+                process.nextTick(() => {
+                    this.emit("change", { changes: this.changes });
+                    this.changes = {};
+                })
+            }
+        }
+
+        this.on("write", ({ key, newValue }) => {
+            dispatchChangeEvent();
+            this.changes[key] = newValue;
+        });
+    }
 
     /**
      * Returns all the entries listed in an array
@@ -32,9 +59,9 @@ export class SharedState extends CustomEventEmitter<SharedStateEvents> {
      * @param client If present, will filter out the entries the given client is not subscribed to
      */
     public view(client?: Client): KeyValue {
-        const filteredEntries = this.listEntries().filter(entry => entry.isPrimitive && (!client || entry.hasSubscriber(client)));
+        const filteredEntries = this.listEntries().filter(entry => !client || entry.hasSubscriber(client));
 
-        return filteredEntries.reduce((obj, entry) => ({...obj, [entry.key]: entry.read()}), {});
+        return filteredEntries.reduce((obj, entry) => ({ ...obj, [entry.key]: entry.read() }), {});
     }
 
     /**
@@ -62,49 +89,81 @@ export class SharedState extends CustomEventEmitter<SharedStateEvents> {
             }
         };
 
+        const findOrCreate = () => {
+            let entry = this.entries[key];
+
+            if (!entry) {
+                this.entries[key] = entry = new Entry(key);
+                this.emit("create", { entry, key: entry.key });
+            }
+
+            entry.on("change", event => this.emit("write", event));
+            return entry;
+        }
+
         if (value instanceof Object) {
             const _value = value as any;
 
-            const proxyController = new ProxyController(_value, {
-                get: (_, subkey: string) => {
-                    const path = applyPrefix(subkey);
+            const proxyController = new ProxyController(key, _value, {
+                get: (target, subkey: string) => {
+                    const path: string = proxyController.applyPrefix(subkey);
 
-                    if (proxyController.connected) return this.read(path) ?? _value[subkey];
-                    else return _value[subkey];
+                    if (proxyController.connected) return this.read(path) ?? target[subkey];
+                    else return target[subkey];
                 },
-                set: (_, subkey: string, newValue: any) => {
-                    try {
-                        _value[subkey] = newValue;
-                    } catch {}
+                set: (target, subkey: string, newValue: any) => {
+                    const path: string = proxyController.applyPrefix(subkey);
 
-                    if (proxyController.connected) this.write(applyPrefix(subkey), newValue);
+                    try {
+                        target[subkey] = newValue;
+                    } catch (error) {
+                        console.error(error);
+                    }
+
+                    if (proxyController.connected) {
+                        this.entries[proxyController.key].update();
+                        this.write(path, newValue);
+                    }
                     return true;
                 },
-                deleteProperty: (_, subkey: string) => {
-                    try {
-                        delete _value[subkey];
-                    } catch {}
+                deleteProperty: (target, subkey: string) => {
+                    const path: string = proxyController.applyPrefix(subkey);
 
-                    if (proxyController.connected) this.delete(applyPrefix(subkey));
+                    try {
+                        delete target[subkey];
+                    } catch (error) {
+                        console.error(error);
+                    }
+
+                    if (proxyController.connected) {
+                        this.entries[proxyController.key].update();
+                        this.delete(path);
+                    }
                     return true;
                 }
             });
 
             const { proxy } = proxyController;
 
+            this.objectTracer.push({ object: value, proxy });
+
             for (const subkey in value) {
                 const subvalue = value[subkey];
-                if (subvalue !== this as any && !this.objectTracer.includes(subvalue)) {
-                    this.objectTracer.push(subvalue);
-                    this.write(applyPrefix(subkey), subvalue);
+                const circularRef = this.objectTracer.find(({ object }) => object === subvalue);
+
+                if (!circularRef) {
+                    const subproxy = this.write(applyPrefix(subkey), subvalue);
+                    this.objectTracer.push({ object: subvalue, proxy: subproxy });
+                    value[subkey] = subproxy;
+                } else {
+                    value[subkey] = circularRef.proxy as any;
                 }
             }
 
             this.objectTracer.splice(0, this.objectTracer.length);
 
-            const entry = this.entries[key] ??= new Entry(key);
+            const entry = findOrCreate();
             entry.proxy?.disconnect();
-            entry.on("change", event => this.emit("write", event));
             entry.write(proxy);
             entry.proxy = proxyController;
 
@@ -116,8 +175,7 @@ export class SharedState extends CustomEventEmitter<SharedStateEvents> {
 
             returnedValue = proxy as T;
         } else {
-            const entry = this.entries[key] ??= new Entry(key);
-            entry.on("change", event => this.emit("write", event));
+            const entry = findOrCreate();
             entry.write(value);
 
             if (oldValue instanceof Object) {
@@ -149,43 +207,12 @@ export class SharedState extends CustomEventEmitter<SharedStateEvents> {
      * Deletes all entries and removes all event listeners associated with the shared state
      */
     public clear() {
+        this.removeAllListeners();
+
         for (const key in this.entries) {
             this.delete(key);
         }
-        this.removeAllListeners();
-    }
-
-    /**
-     * FIlters the entry list by preffix;
-     * @param preffix
-     * @returns
-     */
-    public preffix(preffix: string) {
-        const filteredEntries = { ...this.entries };
-
-        for (const key in filteredEntries) {
-            if (key.substring(0, preffix.length + 1) !== `${preffix}.`) delete filteredEntries[key];
-        }
-
-        return filteredEntries;
-    }
-
-    /**
-     * Reads various entries and groups them into a key-value object
-     * @param preffix The preffix to look for in the entry keys
-     */
-    public readMany(preffix: string) {
-        const object: KeyValue = {...this.view()};
-
-        for (const key in object) {
-            if (key.substring(0, preffix.length + 1) !== `${preffix}.`) delete object[key];
-        }
-
-        return object;
-    }
-
-    constructor (public readonly server: Server) {
-        super();
+        this.setup();
     }
 }
 

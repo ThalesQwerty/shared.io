@@ -1,4 +1,4 @@
-import { SharedState } from ".";
+import { SharedState } from "../core";
 
 /**
  * Creates a SharedIO server

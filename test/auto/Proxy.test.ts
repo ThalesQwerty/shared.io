@@ -1,12 +1,18 @@
-import { Client, EntryEvent, KeyValue, Server } from "../../lib";
+import { EntryEvent, KeyValue, Server } from "../../lib";
 
-describe("Proxy Controller", () => {
+describe("Proxy controller", () => {
+    const state = new Server().state;
+    let lastChange: Omit<EntryEvent<"change">, "entry">|null = null;
+
+    beforeEach(() => {
+        state.on("write", ({ key, oldValue, newValue }) => lastChange = {key, oldValue, newValue});
+    })
+
+    afterEach(() => {
+        state.clear();
+    });
 
     describe("Objects", () => {
-
-        const state = new Server().state;
-        let lastChange: Omit<EntryEvent<"change">, "entry">|null = null;
-
         let object: KeyValue = {};
         let newObject: KeyValue = {};
         let circularObject: KeyValue = {};
@@ -21,12 +27,6 @@ describe("Proxy Controller", () => {
             object = {a: 1, b: 2, c: 3, deep: { nested: 4 }};
             newObject = {x: 1, y: 2, z: 3};
             circularObject = generateCircularObject();
-
-            state.on("write", ({ key, oldValue, newValue }) => lastChange = {key, oldValue, newValue});
-        });
-
-        afterEach(() => {
-            state.clear();
         });
 
         it ("Stores keys with preffixes", () => {
@@ -106,7 +106,7 @@ describe("Proxy Controller", () => {
         });
 
         it ("Detects circular references", () => {
-            const parent = state.write("circular", circularObject);
+            state.write("circular", circularObject);
 
             expect(state.read("circular")).toBeTruthy();
             expect(state.read("circular.a")).toBe(1);
@@ -124,10 +124,10 @@ describe("Proxy Controller", () => {
             expect(state.read("circular.child.b")).toBeNull();
             expect(state.read("circular.child.c")).toBeNull();
 
-            expect(state.read("circular.child.parent")).toBeTruthy();
-            expect(state.read("circular.child.parent.a")).toBe(1);
-            expect(state.read("circular.child.parent.b")).toBe(2);
-            expect(state.read("circular.child.parent.c")).toBe(3);
+            expect(state.read("circular.child.parent")).toBeNull();
+            expect(state.read("circular.child.parent.a")).toBeNull();
+            expect(state.read("circular.child.parent.b")).toBeNull();
+            expect(state.read("circular.child.parent.c")).toBeNull();
             expect(state.read("circular.child.parent.x")).toBeNull();
             expect(state.read("circular.child.parent.y")).toBeNull();
             expect(state.read("circular.child.parent.z")).toBeNull();
@@ -148,22 +148,59 @@ describe("Proxy Controller", () => {
             expect(state.read("circular.child.parent.child.parent.y")).toBeNull();
             expect(state.read("circular.child.parent.child.parent.z")).toBeNull();
         });
+
+        it ("Proxies circular references", () => {
+            const circular = state.write("circular", circularObject);
+
+            expect(circular).toBeTruthy();
+            expect(circular.child).toBeTruthy();
+            expect(circular.child.parent).toBeTruthy();
+            expect(circular.child.parent.child).toBeTruthy();
+            expect(circular.child.parent.child.parent).toBeTruthy();
+            expect(circular.child.parent.child.parent.child).toBeTruthy();
+            expect(circular.child.parent.child.parent.child.parent).toBeTruthy();
+            expect(circular.child.parent.child.parent.child.parent.child).toBeTruthy();
+            expect(circular.child.parent.child.parent.child.parent.child.parent).toBeTruthy();
+            expect(circular.child.parent.child.parent.child.parent.child.parent.child).toBeTruthy();
+
+            expect(circular.a).toBe(1);
+            expect(circular.b).toBe(2);
+            expect(circular.c).toBe(3);
+            expect(circular.child.x).toBe(1);
+            expect(circular.child.y).toBe(2);
+            expect(circular.child.z).toBe(3);
+            expect(circular.child.parent.a).toBe(1);
+            expect(circular.child.parent.b).toBe(2);
+            expect(circular.child.parent.c).toBe(3);
+            expect(circular.child.parent.child.x).toBe(1);
+            expect(circular.child.parent.child.y).toBe(2);
+            expect(circular.child.parent.child.z).toBe(3);
+            expect(circular.child.parent.child.parent.a).toBe(1);
+            expect(circular.child.parent.child.parent.b).toBe(2);
+            expect(circular.child.parent.child.parent.c).toBe(3);
+            expect(circular.child.parent.child.parent.child.x).toBe(1);
+            expect(circular.child.parent.child.parent.child.y).toBe(2);
+            expect(circular.child.parent.child.parent.child.z).toBe(3);
+
+            circular.a = 10;
+            expect(state.read("circular.a")).toBe(10);
+
+            circular.child.x = 10;
+            expect(state.read("circular.child.x")).toBe(10);
+
+            circular.child.parent.b = 20;
+            expect(state.read("circular.b")).toBe(20);
+
+            circular.child.parent.child.y = 20;
+            expect(state.read("circular.child.y")).toBe(20);
+        })
     });
 
     describe("Arrays", () => {
-        const state = new Server().state;
-        let lastChange: Omit<EntryEvent<"change">, "entry">|null = null;
-
         let proxy: any[] = [];
 
         beforeEach(() => {
             proxy = state.write("array", [0, 1, 2, 3, 4]);
-
-            state.on("write", ({ key, oldValue, newValue }) => lastChange = {key, oldValue, newValue});
-        });
-
-        afterEach(() => {
-            state.clear();
         });
 
         it ("Maps the indexes correctly", () => {

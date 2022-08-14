@@ -2,8 +2,8 @@ import { Client, ProxyController } from ".";
 import { CustomEventEmitter, CustomEvent } from "../.";
 
 type EntryEvents<T = any> = {
-    change: (parameters: {entry: Entry, key: string, oldValue: T|null, newValue: T|null}) => void;
-    delete: (parameters: {entry: Entry, key: string, oldValue: T|null}) => void;
+    change: (event: {entry: Entry, key: string, oldValue: T|null, newValue: T|null}) => void;
+    delete: (event: {entry: Entry, key: string, oldValue: T|null}) => void;
 }
 
 export type EntryEvent<name extends keyof EntryEvents> = CustomEvent<EntryEvents, name>;
@@ -41,16 +41,22 @@ export class Entry<T = any> extends CustomEventEmitter<EntryEvents<T>> {
      * Writes a new value of this entry
      * @param broadcast Should it notify the subscribers right afterwards? Default is `true`.
      */
-    public write(newValue: T|null, broadcast: boolean = true) {
+    public write(newValue: T|null) {
         const oldValue = this.value;
         const hasChanged = newValue !== oldValue;
 
         if (hasChanged) {
             this.value = newValue ?? null;
             this.emit("change", { entry: this, key: this.key, oldValue, newValue });
-
-            if (broadcast) this.broadcast();
         }
+    }
+
+    /**
+     * Forcefully emits a "change" event, with the current value as the new value
+     * @param oldValue What was the previous value? If omitted, uses the current value.
+     */
+    public update(oldValue: T|null = this.value) {
+        this.emit("change", { entry: this, key: this.key, oldValue, newValue: this.value });
     }
 
     /**
@@ -60,19 +66,7 @@ export class Entry<T = any> extends CustomEventEmitter<EntryEvents<T>> {
         const oldValue = this.value;
         this.write(null as any);
         this.emit("delete", { entry: this, key: this.key, oldValue });
-    }
-
-    /**
-     * Notifies the subscribers of the current value of this entry
-     */
-    public broadcast() {
-        for (const subscriber of this.subscribers) {
-            subscriber.send({
-                // to-do
-                key: this.key,
-                value: this.value
-            });
-        }
+        this.removeAllListeners();
     }
 
     public hasSubscriber(client: Client) {
@@ -93,6 +87,7 @@ export class Entry<T = any> extends CustomEventEmitter<EntryEvents<T>> {
     public addSubscriber(client: Client) {
         if (!this.hasSubscriber(client)) {
             this.subscribers.push(client);
+            client.watcher.watch(this);
             return true;
         }
         return false;
@@ -104,10 +99,12 @@ export class Entry<T = any> extends CustomEventEmitter<EntryEvents<T>> {
      */
     public removeSubscriber(client: Client) {
         const subscriberIndex = this.getSubscriberIndex(client);
-        if (subscriberIndex < 0) return false;
-
-        this.subscribers.splice(subscriberIndex, 1);
-        return true;
+        if (subscriberIndex >= 0) {
+            this.subscribers.splice(subscriberIndex, 1);
+            client.watcher.unwatch(this);
+            return true;
+        }
+        return false;
     }
 
     constructor(key: string) {

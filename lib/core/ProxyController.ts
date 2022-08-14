@@ -6,7 +6,7 @@ export class ProxyController<T extends object = object> extends HasId {
     private _connected = true;
     public get connected() { return this._connected };
 
-    constructor (...[target, handler]: ConstructorParameters<typeof Proxy<T>>) {
+    constructor (public readonly key: string, ...[target, handler]: ConstructorParameters<typeof Proxy<T>>) {
         super();
 
         this.proxy = new Proxy(target, handler);
@@ -19,4 +19,12 @@ export class ProxyController<T extends object = object> extends HasId {
     disconnect() {
         this._connected = false;
     }
+
+    applyPrefix (subkey: string, hasFallback: boolean = true) {
+        try {
+            return `${this.key}.${subkey}`;
+        } catch {
+            return hasFallback ? subkey : "";
+        }
+    };
 }

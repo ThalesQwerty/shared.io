@@ -1,6 +1,5 @@
-import { EventEmitter } from "node:events";
-import { Client, Server, Entry, ProxyController } from ".";
-import { CustomEvent, CustomEventEmitter, KeyValue } from "../.";
+import { Entry, ProxyController } from ".";
+import { Client, CustomEvent, CustomEventEmitter, KeyValue, Server } from "..";
 
 type SharedStateEvents = {
     write: (event: { entry: Entry, key: string, oldValue: any, newValue: any }) => void;
@@ -59,7 +58,9 @@ export class SharedState extends CustomEventEmitter<SharedStateEvents> {
      * @param client If present, will filter out the entries the given client is not subscribed to
      */
     public view(client?: Client): KeyValue {
-        const filteredEntries = this.listEntries().filter(entry => !client || entry.hasSubscriber(client));
+        const filteredEntries = this.listEntries().filter(entry => {
+            return !client || entry.subscribers.includes(client)
+        });
 
         return filteredEntries.reduce((obj, entry) => ({ ...obj, [entry.key]: entry.read() }), {});
     }

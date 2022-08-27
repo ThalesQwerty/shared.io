@@ -1,4 +1,4 @@
-import { HasId } from "./Id";
+import { HasId } from "./HasId";
 
 export class ProxyController<T extends object = object> extends HasId {
     public readonly proxy: T;

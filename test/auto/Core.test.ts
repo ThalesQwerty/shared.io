@@ -1,5 +1,5 @@
 import _ from "lodash";
-import { Client, EntryEvent, KeyValue, nextTick, Server } from "../../lib";
+import { Client, KeyValue, nextTick, Server } from "../../lib";
 
 describe("Shared state", () => {
     const server = new Server();
@@ -63,42 +63,42 @@ describe("Shared state", () => {
             state.write("entry", 0);
             const { entry } = entries;
 
-            expect(entry.subscribers).toEqual([]);
+            expect(entry.subscribers.array).toEqual([]);
 
-            entry.addSubscriber(alice);
-            expect(entry.subscribers.map(client => client.id)).toEqual([alice.id]);
+            entry.subscribers.add(alice);
+            expect(entry.subscribers.ids).toEqual([alice.id]);
 
-            entry.addSubscriber(bob);
-            expect(entry.subscribers.map(client => client.id)).toEqual([alice.id, bob.id]);
+            entry.subscribers.add(bob);
+            expect(entry.subscribers.ids).toEqual([alice.id, bob.id]);
 
-            entry.removeSubscriber(alice);
-            expect(entry.subscribers.map(client => client.id)).toEqual([bob.id]);
+            entry.subscribers.remove(alice);
+            expect(entry.subscribers.ids).toEqual([bob.id]);
 
-            entry.addSubscriber(alice);
-            expect(entry.subscribers.map(client => client.id)).toEqual([bob.id, alice.id]);
+            entry.subscribers.add(alice);
+            expect(entry.subscribers.ids).toEqual([bob.id, alice.id]);
 
-            entry.addSubscriber(charles);
-            expect(entry.subscribers.map(client => client.id)).toEqual([bob.id, alice.id, charles.id]);
+            entry.subscribers.add(charles);
+            expect(entry.subscribers.ids).toEqual([bob.id, alice.id, charles.id]);
 
             // Shouldn't add duplicate subscribers
-            entry.addSubscriber(bob);
-            expect(entry.subscribers.map(client => client.id)).toEqual([bob.id, alice.id, charles.id]);
+            entry.subscribers.add(bob);
+            expect(entry.subscribers.ids).toEqual([bob.id, alice.id, charles.id]);
 
-            entry.addSubscriber(alice);
-            expect(entry.subscribers.map(client => client.id)).toEqual([bob.id, alice.id, charles.id]);
+            entry.subscribers.add(alice);
+            expect(entry.subscribers.ids).toEqual([bob.id, alice.id, charles.id]);
 
-            entry.addSubscriber(charles);
-            expect(entry.subscribers.map(client => client.id)).toEqual([bob.id, alice.id, charles.id]);
+            entry.subscribers.add(charles);
+            expect(entry.subscribers.ids).toEqual([bob.id, alice.id, charles.id]);
             // -------------------------------
 
-            entry.removeSubscriber(bob);
-            expect(entry.subscribers.map(client => client.id)).toEqual([alice.id, charles.id]);
+            entry.subscribers.remove(bob);
+            expect(entry.subscribers.ids).toEqual([alice.id, charles.id]);
 
-            entry.removeSubscriber(charles);
-            expect(entry.subscribers.map(client => client.id)).toEqual([alice.id]);
+            entry.subscribers.remove(charles);
+            expect(entry.subscribers.ids).toEqual([alice.id]);
 
-            entry.removeSubscriber(alice);
-            expect(entry.subscribers.map(client => client.id)).toEqual([]);
+            entry.subscribers.remove(alice);
+            expect(entry.subscribers.ids).toEqual([]);
         });
 
         it ("Filters view based on subscribers", () => {
@@ -110,12 +110,12 @@ describe("Shared state", () => {
             state.write("bobOnly", 2);
             state.write("secret", 3);
 
-            entries.public.addSubscriber(alice);
-            entries.public.addSubscriber(bob);
+            entries.public.subscribers.add(alice);
+            entries.public.subscribers.add(bob);
 
-            entries.aliceOnly.addSubscriber(alice);
+            entries.aliceOnly.subscribers.add(alice);
 
-            entries.bobOnly.addSubscriber(bob);
+            entries.bobOnly.subscribers.add(bob);
 
             expect(state.view()).toEqual({
                 public: 0,
@@ -159,12 +159,12 @@ describe("Shared state", () => {
             state.write("bobOnly", 0);
             state.write("secret", 0);
 
-            entries.public.addSubscriber(alice);
-            entries.public.addSubscriber(bob);
+            entries.public.subscribers.add(alice);
+            entries.public.subscribers.add(bob);
 
-            entries.aliceOnly.addSubscriber(alice);
+            entries.aliceOnly.subscribers.add(alice);
 
-            entries.bobOnly.addSubscriber(bob);
+            entries.bobOnly.subscribers.add(bob);
 
             entries.public.write(1);
             await nextTick();
@@ -249,33 +249,24 @@ describe("Shared state", () => {
         it ("Constructs the client view", async () => {
             const client = new Client(server);
 
-            state.on("create", ({ entry }) => entry.addSubscriber(client))
-
-            let clientView: KeyValue = {};
-
-            client.watcher.on("change", ({ changes }) => {
-                clientView = {
-                    ...clientView,
-                    ...changes
-                }
-            });
+            state.on("create", ({ entry }) => entry.subscribers.add(client))
 
             state.write("a", 1);
             await nextTick();
-            expect(clientView).toEqual({
+            expect(client.view.state).toEqual({
                 a: 1
             });
 
             state.write("b", "test");
             await nextTick();
-            expect(clientView).toEqual({
+            expect(client.view.state).toEqual({
                 a: 1,
                 b: "test"
             });
 
             const c: KeyValue = state.write("c", {x: 1, y: 2, z: 3});
             await nextTick();
-            expect(clientView).toEqual({
+            expect(client.view.state).toEqual({
                 a: 1,
                 b: "test",
                 c: {x: 1, y: 2, z: 3},
@@ -284,7 +275,7 @@ describe("Shared state", () => {
 
             const d: KeyValue = state.write("d", [1, 2, 3, 4, 5]);
             await nextTick();
-            expect(clientView).toEqual({
+            expect(client.view.state).toEqual({
                 a: 1,
                 b: "test",
                 c: {x: 1, y: 2, z: 3},
@@ -296,7 +287,7 @@ describe("Shared state", () => {
             state.write("b", false);
             state.write("a", 10);
             await nextTick();
-            expect(clientView).toEqual({
+            expect(client.view.state).toEqual({
                 a: 10,
                 b: false,
                 c: {x: 1, y: 2, z: 3},
@@ -308,7 +299,7 @@ describe("Shared state", () => {
             c.y = 20;
             c.w = [];
             await nextTick();
-            expect(clientView).toEqual({
+            expect(client.view.state).toEqual({
                 a: 10,
                 b: false,
                 c: {x: 1, y: 20, z: 3, w: []},
@@ -322,7 +313,7 @@ describe("Shared state", () => {
             state.delete("c");
             state.delete("d");
             await nextTick();
-            expect(clientView).toEqual({
+            expect(client.view.state).toEqual({
                 a: null,
                 b: null,
                 c: null,

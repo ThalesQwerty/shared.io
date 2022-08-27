@@ -1,4 +1,4 @@
-import { Client, HasId, Server } from "../core";
+import { Client, HasId, Server } from "../";
 
 export class Entity extends HasId {
     public get type() {

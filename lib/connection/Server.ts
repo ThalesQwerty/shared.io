@@ -1,7 +1,7 @@
 import { WebSocketServer } from "ws";
 import { SharedState } from "../core";
-import { Client, ClientList } from ".";
-import { CustomEvent, CustomEventEmitter } from "..";
+import { Client } from ".";
+import { CustomEvent, CustomEventEmitter, ClientList } from "..";
 
 const DEFAULT_CONFIG: ServerConfig = {
     port: 3000

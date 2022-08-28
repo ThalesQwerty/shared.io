@@ -1,5 +1,4 @@
-import { HasId } from "../core";
-import { List } from "./List";
+import { List, HasId } from ".";
 
 export class IdList<T extends HasId> extends List<T> {
     /**

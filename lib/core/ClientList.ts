@@ -1,5 +1,4 @@
-import { IdList, KeyValue, HasId, Entry, UUID } from "../";
-import { Client } from "./Client";
+import { IdList, KeyValue, HasId, UUID, Client } from "..";
 
 export class ClientList extends IdList<Client> {
     protected static readonly all: KeyValue<ClientList> = {};

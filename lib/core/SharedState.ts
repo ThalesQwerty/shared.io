@@ -105,44 +105,7 @@ export class SharedState extends CustomEventEmitter<SharedStateEvents> {
         if (value instanceof Object) {
             const _value = value as any;
 
-            const proxyController = new ProxyController(key, _value, {
-                get: (target, subkey: string) => {
-                    const path: string = proxyController.applyPrefix(subkey);
-
-                    if (proxyController.connected) return this.read(path) ?? target[subkey];
-                    else return target[subkey];
-                },
-                set: (target, subkey: string, newValue: any) => {
-                    const path: string = proxyController.applyPrefix(subkey);
-
-                    try {
-                        target[subkey] = newValue;
-                    } catch (error) {
-                        console.error(error);
-                    }
-
-                    if (proxyController.connected) {
-                        this.entries[proxyController.key].update();
-                        this.write(path, newValue);
-                    }
-                    return true;
-                },
-                deleteProperty: (target, subkey: string) => {
-                    const path: string = proxyController.applyPrefix(subkey);
-
-                    try {
-                        delete target[subkey];
-                    } catch (error) {
-                        console.error(error);
-                    }
-
-                    if (proxyController.connected) {
-                        this.entries[proxyController.key].update();
-                        this.delete(path);
-                    }
-                    return true;
-                }
-            });
+            const proxyController = new ProxyController(this, key, _value);
 
             const { proxy } = proxyController;
 

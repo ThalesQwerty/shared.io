@@ -7,27 +7,28 @@ export function UUID() {
     return v4();
 }
 
-export class HasId {
-    /**
-     * Generates a random unique universal identifier string
-     */
-    static new() {
-        return UUID();
-    }
 
-    /**
-     * Random unique universal identifier string associated with this object
-     */
-    public readonly id: string;
+type Class = new (...args: any[]) => any;
 
-    /**
-     * Verifies if this object is the same as another one by comparing its IDs
-     */
-    public is<T extends HasId>(object: T) {
-        return this.id === object.id;
-    }
+export function HasId_Mixin<Base extends Class>(base: Base) {
+    return class HasId extends base {
+        /**
+         * Random unique universal identifier string associated with this object
+         */
+        public readonly id: string;
 
-    constructor() {
-        this.id = HasId.new();
+        /**
+         * Verifies if this object is the same as another one by comparing its IDs
+         */
+        public is<T extends HasId>(object: T) {
+            return this.id === object.id;
+        }
+
+        constructor(...args: any[]) {
+            super(...args);
+            this.id = UUID();
+        }
     }
 }
+
+export class HasId extends HasId_Mixin(class {}) {};

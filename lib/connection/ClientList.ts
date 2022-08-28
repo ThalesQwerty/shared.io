@@ -1,4 +1,4 @@
-import { IdList, KeyValue, HasId, Entry } from "../";
+import { IdList, KeyValue, HasId, Entry, UUID } from "../";
 import { Client } from "./Client";
 
 export class ClientList extends IdList<Client> {
@@ -29,7 +29,7 @@ export class ClientList extends IdList<Client> {
         /**
          * Random unique universal identifier string associated with this client list
          */
-        public readonly id: string = HasId.new(),
+        public readonly id: string = UUID(),
         ...items: Client[]
     ) {
         super(...items);

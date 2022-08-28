@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 
-type GenericEventList = {[event: string|symbol]: ((parameters: any) => void)};
+export type GenericEventList = {[event: string|symbol]: ((parameters: any) => void)};
 
 export class CustomEventEmitter<EventList extends GenericEventList> extends EventEmitter {}
 

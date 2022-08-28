@@ -12,7 +12,7 @@ export type ClientEvent<name extends keyof ClientEvents> = CustomEvent<ClientEve
 /**
  * Represents a websocket client connected to a SharedIO server
  */
-export class Client extends HasId_Mixin<new (...args: any[]) => CustomEventEmitter<ClientEvents>>(CustomEventEmitter) {
+export class Client extends HasId_Mixin<new () => CustomEventEmitter<ClientEvents>>(CustomEventEmitter) {
     public readonly view: View;
 
     public get connected() {

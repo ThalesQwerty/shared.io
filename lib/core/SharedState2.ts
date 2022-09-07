@@ -60,14 +60,14 @@ export class SharedState2 {
 
         const proxy = new Proxy(object, {
             get: (target: any, subkey: string) => {
-                if (active()) {
+                if (active() && typeof subkey === "string") {
                     return this.read(key(subkey));
                 } else {
                     return target[subkey];
                 }
             },
             set: (target: any, subkey: string, newValue: any) => {
-                if (active()) {
+                if (active() && typeof subkey === "string") {
                     this.write(key(subkey), newValue);
                     return true;
                 } else {
@@ -76,7 +76,7 @@ export class SharedState2 {
                 }
             },
             deleteProperty: (target: any, subkey: string) => {
-                if (active()) {
+                if (active() && typeof subkey === "string") {
                     return this.delete(key(subkey));
                 } else {
                     delete target[subkey];
@@ -84,6 +84,7 @@ export class SharedState2 {
                 }
             }
         });
+
         this.proxies[preffix] = {id, proxy};
         return proxy;
     }
@@ -94,8 +95,9 @@ export class SharedState2 {
      * @param value
      */
     public write<T>(key: string, value: T): T {
-        const _write = <T>(object: any, key: string, value: T): T => {
+        const _write = <T>(object: any, key: string, value: T, preffix: string = ""): T => {
             const path = key.split(".");
+            const superkey = (subkey: string) => preffix ? `${preffix}.${subkey}` : subkey;
 
             if (path.length > 1) {
                 const child = () => object[path[0]];
@@ -104,11 +106,11 @@ export class SharedState2 {
                 if (!(child() instanceof Object)) {
                     _write(object, path[0], {});
                 }
-                return _write(child(), subkey, value);
+                return _write(child(), subkey, value, superkey(path[0]));
             } else {
                 object[key] = value;
                 return value instanceof Object ?
-                    this.proxy(key, value, true)
+                    this.proxy(superkey(key), value, true)
                     : value;
             }
         }
@@ -120,19 +122,22 @@ export class SharedState2 {
      * @param key
      * @returns The value, if the key exists. Returns `undefined` otherwise.
      */
-    public read<T = any>(key: string): T {
-        const _read = <T = any>(object: any, key: string): T => {
+    public read<T = any>(key: string): T|undefined {
+        const _read = <T = any>(object: any, key: string, preffix: string = ""): T|undefined => {
+            if (!object) return undefined;
+            const superkey = (subkey: string) => preffix ? `${preffix}.${subkey}` : subkey;
+
             const path = key.split(".");
 
             if (path.length > 1) {
                 const child = object[path[0]];
                 const subkey = path.slice(1).join(".");
-                return _read(child, subkey);
+                return _read(child, subkey, superkey(path[0]));
             } else {
                 const value = object[key];
                 return value instanceof Object ?
-                    this.proxy(key, value, false)
-                    : object[key];
+                    this.proxy(superkey(key), value, false)
+                    : value;
             }
         }
         return _read<T>(this._entries, key);

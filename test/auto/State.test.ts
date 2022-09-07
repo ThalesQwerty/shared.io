@@ -150,17 +150,32 @@ describe("Shared state", () => {
 
             test.b.d = 10;
             expect(state.entries).toEqual({ test: { a: 1, b: { c: 0, d: 10 } } });
+
+            test.b.x = { y: 2 };
+            expect(state.entries).toEqual({ test: { a: 1, b: { c: 0, d: 10, x: { y: 2 } } } });
+
+            test.b.x.y = 3;
+            expect(state.entries).toEqual({ test: { a: 1, b: { c: 0, d: 10, x: { y: 3 } } } });
+
+            test.b.x.z = 4;
+            expect(state.entries).toEqual({ test: { a: 1, b: { c: 0, d: 10, x: { y: 3, z: 4 } } } });
         });
 
         it("Proxies existing nested objects", () => {
-            const test = state.write("test", { a: 1, b: {} }) as any;
-            expect(state.entries).toEqual({ test: { a: 1, b: {} } });
+            const test = state.write("test", { a: 1, b: { x: { y: 2 } } }) as any;
+            expect(state.entries).toEqual({ test: { a: 1, b: { x: { y: 2 } } } });
 
             test.b.c = 0;
-            expect(state.entries).toEqual({ test: { a: 10, b: { c: 0 } } });
+            expect(state.entries).toEqual({ test: { a: 1, b: { x: { y: 2 }, c: 0 } } });
 
             test.b.d = 10;
-            expect(state.entries).toEqual({ test: { a: 10, b: { c: 0, d: 10 } } });
+            expect(state.entries).toEqual({ test: { a: 1, b: { x: { y: 2 }, c: 0, d: 10 } } });
+
+            test.b.x.y = 3;
+            expect(state.entries).toEqual({ test: { a: 1, b: { x: { y: 3 }, c: 0, d: 10 } } });
+
+            test.b.x.z = 4;
+            expect(state.entries).toEqual({ test: { a: 1, b: { x: { y: 3, z: 4 }, c: 0, d: 10 } } });
         });
 
         it("Disconnects proxies on object reassignment", () => {
@@ -183,6 +198,27 @@ describe("Shared state", () => {
             expect(state.entries).toEqual({ test: { x: 1, y: 20, z: 30 } });
         });
 
+        it("Disconnects deep proxies on object reassignment", () => {
+            const test = state.write("test", { a: 1, b: {} }) as any;
+            expect(state.entries).toEqual({ test: { a: 1, b: {} } });
 
+            const first = test.b;
+            expect(state.entries).toEqual({ test: { a: 1, b: {} } });
+
+            first.c = 0;
+            expect(state.entries).toEqual({ test: { a: 1, b: { c: 0 } } });
+
+            const second = test.b = {} as any;
+            expect(state.entries).toEqual({ test: { a: 1, b: {} } });
+
+            second.d = 10;
+            expect(state.entries).toEqual({ test: { a: 1, b: { d: 10 } } });
+
+            first.c = 1;
+            expect(state.entries).toEqual({ test: { a: 1, b: { d: 10 } } });
+
+            second.e = { f: 2 };
+            expect(state.entries).toEqual({ test: { a: 1, b: { d: 10, e: { f: 2 } } } });
+        });
     })
 });

@@ -99,7 +99,7 @@ describe("Shared state", () => {
 
     })
 
-    describe("Proxy handling", () => {
+    describe("Proxy assignment", () => {
         it("Proxies objects", () => {
             const test = state.write("test", { a: 1, b: 2, c: 3 }) as any;
             expect(state.entries).toEqual({ test: { a: 1, b: 2, c: 3 } });
@@ -177,7 +177,9 @@ describe("Shared state", () => {
             test.b.x.z = 4;
             expect(state.entries).toEqual({ test: { a: 1, b: { x: { y: 3, z: 4 }, c: 0, d: 10 } } });
         });
+    })
 
+    describe("Proxy reassignment", () => {
         it("Disconnects proxies on object reassignment", () => {
             const first = state.write("test", { a: 1, b: 2, c: 3 }) as any;
             expect(state.entries).toEqual({ test: { a: 1, b: 2, c: 3 } });

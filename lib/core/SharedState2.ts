@@ -1,5 +1,5 @@
 import { ClientList } from ".";
-import { KeyValue, UUID } from "..";
+import { KeyValue, UUID, Logger } from "..";
 import _ from "lodash";
 
 type ClientLists = {
@@ -85,6 +85,8 @@ export class SharedState2 {
             }
         });
 
+        Logger.trace(`proxy %s${this.proxies[preffix] ? " (overwritten)" : ""}`, preffix);
+
         this.proxies[preffix] = {id, proxy};
         return proxy;
     }
@@ -95,6 +97,7 @@ export class SharedState2 {
      * @param value
      */
     public write<T>(key: string, value: T): T {
+        Logger.trace("write %s %o", key, value);
         const _write = <T>(object: any, key: string, value: T, preffix: string = ""): T => {
             const path = key.split(".");
             const superkey = (subkey: string) => preffix ? `${preffix}.${subkey}` : subkey;
@@ -140,7 +143,9 @@ export class SharedState2 {
                     : value;
             }
         }
-        return _read<T>(this._entries, key);
+        const value = _read<T>(this._entries, key);
+        Logger.trace("read %s %o", key, value);
+        return value;
     }
 
     /**
@@ -168,6 +173,8 @@ export class SharedState2 {
                 }
             }
         }
-        return _delete(this._entries, key);
+        const success = _delete(this._entries, key);
+        Logger.trace("delete %s %s", key, success);
+        return success;
     }
 }

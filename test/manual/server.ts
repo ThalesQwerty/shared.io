@@ -1,15 +1,16 @@
 import SharedIO from "../..";
+import { ClientList } from "../../lib";
 
 const server = new SharedIO.Server({
     port: 3000
 }).start();
 
 server.state.write("test", 0);
-const testEntry = server.state.entries["test"];
+server.state.clientLists.subscribers["test"] = new ClientList();
 
 server.on("connection", event => {
     console.log("New user connected! :)");
-    testEntry.subscribers.add(event.client);
+    server.state.clientLists.subscribers["test"]!.add(event.client);
 })
 
 server.on("disconnection", () => {

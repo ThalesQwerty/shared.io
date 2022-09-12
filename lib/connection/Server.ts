@@ -29,7 +29,7 @@ export class Server extends CustomEventEmitter<ServerEvents> {
 
     public constructor(public readonly config: ServerConfig = DEFAULT_CONFIG) {
         super();
-        this.state = new SharedState(this);
+        this.state = new SharedState();
     }
 
     /**

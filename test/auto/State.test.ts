@@ -1,11 +1,12 @@
-import { SharedState2 } from "../../lib/core/SharedState2";
+import { KeyValue } from "../../lib";
+import { SharedState } from "../../lib/core/SharedState";
 
 describe("Shared state", () => {
 
-    let state: SharedState2;
+    let state: SharedState;
 
     beforeEach(() => {
-        state = new SharedState2();
+        state = new SharedState();
     });
 
     afterEach(() => {
@@ -222,5 +223,114 @@ describe("Shared state", () => {
             second.e = { f: 2 };
             expect(state.entries).toEqual({ test: { a: 1, b: { d: 10, e: { f: 2 } } } });
         });
-    })
+    }),
+
+    describe("Cirular references", () => {
+
+        let object: KeyValue = {};
+        let newObject: KeyValue = {};
+        let circularObject: KeyValue = {};
+
+        beforeEach(() => {
+            const generateCircularObject = (circularObjectParent: KeyValue = {child: null, a: 1, b: 2, c: 3}) => {
+                const generateCircularObjectChild = (parent: typeof circularObject) => ({ parent, x: 1, y: 2, z: 3 });
+                circularObjectParent.child = generateCircularObjectChild(circularObjectParent);
+                return circularObjectParent;
+            }
+
+            object = {a: 1, b: 2, c: 3, deep: { nested: 4 }};
+            newObject = {x: 1, y: 2, z: 3};
+            circularObject = generateCircularObject();
+        });
+
+        it ("Handles circular references", () => {
+            state.write("circular", circularObject);
+
+            expect(state.read("circular")).toBeTruthy();
+            expect(state.read("circular.a")).toBe(1);
+            expect(state.read("circular.b")).toBe(2);
+            expect(state.read("circular.c")).toBe(3);
+            expect(state.read("circular.x")).toBeUndefined();
+            expect(state.read("circular.y")).toBeUndefined();
+            expect(state.read("circular.z")).toBeUndefined();
+
+            expect(state.read("circular.child")).toBeTruthy();
+            expect(state.read("circular.child.x")).toBe(1);
+            expect(state.read("circular.child.y")).toBe(2);
+            expect(state.read("circular.child.z")).toBe(3);
+            expect(state.read("circular.child.a")).toBeUndefined();
+            expect(state.read("circular.child.b")).toBeUndefined();
+            expect(state.read("circular.child.c")).toBeUndefined();
+
+            expect(state.read("circular.child.parent")).toBeTruthy();
+            expect(state.read("circular.child.parent.a")).toBe(1);
+            expect(state.read("circular.child.parent.b")).toBe(2);
+            expect(state.read("circular.child.parent.c")).toBe(3);
+            expect(state.read("circular.child.parent.x")).toBeUndefined();
+            expect(state.read("circular.child.parent.y")).toBeUndefined();
+            expect(state.read("circular.child.parent.z")).toBeUndefined();
+
+            expect(state.read("circular.child.parent.child")).toBeTruthy();
+            expect(state.read("circular.child.parent.child.x")).toBe(1);
+            expect(state.read("circular.child.parent.child.y")).toBe(2);
+            expect(state.read("circular.child.parent.child.z")).toBe(3);
+            expect(state.read("circular.child.parent.child.a")).toBeUndefined();
+            expect(state.read("circular.child.parent.child.b")).toBeUndefined();
+            expect(state.read("circular.child.parent.child.c")).toBeUndefined();
+
+            expect(state.read("circular.child.parent.child.parent")).toBeTruthy();
+            expect(state.read("circular.child.parent.child.parent.a")).toBe(1);
+            expect(state.read("circular.child.parent.child.parent.b")).toBe(2);
+            expect(state.read("circular.child.parent.child.parent.c")).toBe(3);
+            expect(state.read("circular.child.parent.child.parent.x")).toBeUndefined();
+            expect(state.read("circular.child.parent.child.parent.y")).toBeUndefined();
+            expect(state.read("circular.child.parent.child.parent.z")).toBeUndefined();
+        });
+
+        it ("Proxies circular references", () => {
+            const circular = state.write("circular", circularObject);
+
+            expect(circular).toBeTruthy();
+            expect(circular.child).toBeTruthy();
+            expect(circular.child.parent).toBeTruthy();
+            expect(circular.child.parent.child).toBeTruthy();
+            expect(circular.child.parent.child.parent).toBeTruthy();
+            expect(circular.child.parent.child.parent.child).toBeTruthy();
+            expect(circular.child.parent.child.parent.child.parent).toBeTruthy();
+            expect(circular.child.parent.child.parent.child.parent.child).toBeTruthy();
+            expect(circular.child.parent.child.parent.child.parent.child.parent).toBeTruthy();
+            expect(circular.child.parent.child.parent.child.parent.child.parent.child).toBeTruthy();
+
+            expect(circular.a).toBe(1);
+            expect(circular.b).toBe(2);
+            expect(circular.c).toBe(3);
+            expect(circular.child.x).toBe(1);
+            expect(circular.child.y).toBe(2);
+            expect(circular.child.z).toBe(3);
+            expect(circular.child.parent.a).toBe(1);
+            expect(circular.child.parent.b).toBe(2);
+            expect(circular.child.parent.c).toBe(3);
+            expect(circular.child.parent.child.x).toBe(1);
+            expect(circular.child.parent.child.y).toBe(2);
+            expect(circular.child.parent.child.z).toBe(3);
+            expect(circular.child.parent.child.parent.a).toBe(1);
+            expect(circular.child.parent.child.parent.b).toBe(2);
+            expect(circular.child.parent.child.parent.c).toBe(3);
+            expect(circular.child.parent.child.parent.child.x).toBe(1);
+            expect(circular.child.parent.child.parent.child.y).toBe(2);
+            expect(circular.child.parent.child.parent.child.z).toBe(3);
+
+            circular.a = 10;
+            expect(state.read("circular.a")).toBe(10);
+
+            circular.child.x = 10;
+            expect(state.read("circular.child.x")).toBe(10);
+
+            circular.child.parent.b = 20;
+            expect(state.read("circular.b")).toBe(20);
+
+            circular.child.parent.child.y = 20;
+            expect(state.read("circular.child.y")).toBe(20);
+        });
+    });
 });

@@ -1,183 +1,199 @@
-import { Entry, ProxyController } from ".";
-import { Client, CustomEvent, CustomEventEmitter, KeyValue, Server } from "..";
+import { ClientList } from ".";
+import { KeyValue, UUID, Logger } from "..";
+import _ from "lodash";
 
-type SharedStateEvents = {
-    write: (event: { entry: Entry, key: string, oldValue: any, newValue: any }) => void;
-    delete: (event: { entry: Entry, key: string, oldValue: any }) => void;
-    create: (event: { entry: Entry, key: string }) => void;
-    change: (event: { changes: KeyValue }) => void;
-};
-
-export type SharedStateEvent<name extends keyof SharedStateEvents> = CustomEvent<SharedStateEvents, name>;
-
-/**
- * Manages the server's shared state
- */
-export class SharedState extends CustomEventEmitter<SharedStateEvents> {
-    public readonly entries: KeyValue<Entry> = {};
-
-    /**
-     * Traces nested objects to prevent circular references
-     */
-    private readonly objectTracer: {object: Object, proxy: Object}[] = [];
-
-    private changes: KeyValue = {};
-
-    private get hasChanges() { return !!Object.keys(this.changes).length };
-
-    constructor(public readonly server: Server) {
-        super();
-        this.setup();
-    }
-
-    private setup() {
-        const dispatchChangeEvent = () => {
-            if (!this.hasChanges) {
-                process.nextTick(() => {
-                    this.emit("change", { changes: this.changes });
-                    this.changes = {};
-                })
-            }
-        }
-
-        this.on("write", ({ key, newValue }) => {
-            dispatchChangeEvent();
-            this.changes[key] = newValue;
-        });
-    }
-
-    /**
-     * Returns all the entries listed in an array
-     */
-    public listEntries() {
-        return Object.keys(this.entries).map(key => this.entries[key]);
-    }
-
-    /**
-     * Returns a key-value object reprensenting the current value of the entires
-     * @param client If present, will filter out the entries the given client is not subscribed to
-     */
-    public view(client?: Client): KeyValue {
-        const filteredEntries = this.listEntries().filter(entry => {
-            return !client || entry.subscribers.includes(client)
-        });
-
-        return filteredEntries.reduce((obj, entry) => ({ ...obj, [entry.key]: entry.read() }), {});
-    }
-
-    /**
-     * Finds an entry by its key and returns its value. Returns `null` if entry is not found.
-     */
-    public read(key: string) {
-        const entry = this.entries[key];
-
-        return entry?.read() ?? null;
-    }
-
-    /**
-     * Finds an entry by its key and writes a value into it. If entry is not present, creates a new entry containing this value.
-     */
-    public write<T = any>(key: string, value: T) {
-        let returnedValue: T;
-
-        const oldValue = this.read(key);
-
-        const applyPrefix = (subkey: string, hasFallback: boolean = true) => {
-            try {
-                return `${key}.${subkey}`;
-            } catch {
-                return hasFallback ? subkey : "";
-            }
-        };
-
-        const findOrCreate = () => {
-            let entry = this.entries[key];
-
-            if (!entry) {
-                this.entries[key] = entry = new Entry(key);
-                this.emit("create", { entry, key: entry.key });
-            }
-
-            entry.on("change", event => this.emit("write", event));
-            return entry;
-        }
-
-        if (value instanceof Object) {
-            const _value = value as any;
-
-            const proxyController = new ProxyController(this, key, _value);
-
-            const { proxy } = proxyController;
-
-            this.objectTracer.push({ object: value, proxy });
-
-            for (const subkey in value) {
-                const subvalue = value[subkey];
-                const circularRef = this.objectTracer.find(({ object }) => object === subvalue);
-
-                if (!circularRef) {
-                    const subproxy = this.write(applyPrefix(subkey), subvalue);
-                    this.objectTracer.push({ object: subvalue, proxy: subproxy });
-                    value[subkey] = subproxy;
-                } else {
-                    value[subkey] = circularRef.proxy as any;
-                }
-            }
-
-            this.objectTracer.splice(0, this.objectTracer.length);
-
-            const entry = findOrCreate();
-            entry.proxy?.disconnect();
-            entry.write(proxy);
-            entry.proxy = proxyController;
-
-            if (oldValue instanceof Object) {
-                for (const subkey in oldValue) {
-                    if (!Object.keys(value).includes(subkey)) this.delete(applyPrefix(subkey));
-                }
-            }
-
-            returnedValue = proxy as T;
-        } else {
-            const entry = findOrCreate();
-            entry.write(value);
-
-            if (oldValue instanceof Object) {
-                for (const subkey in oldValue) {
-                    this.delete(applyPrefix(subkey));
-                }
-            }
-
-            returnedValue = value;
-        }
-
-        return returnedValue;
-    }
-
-    /**
-     * Finds an entry by its key and deletes it, setting its value to null and removing it from the entry list.
-     */
-    public delete(key: string) {
-        const entry = this.entries[key];
-
-        if (entry) {
-            this.write(key, null);
-            entry.delete();
-            delete this.entries[key];
-        }
-    }
-
-    /**
-     * Deletes all entries and removes all event listeners associated with the shared state
-     */
-    public clear() {
-        this.removeAllListeners();
-
-        for (const key in this.entries) {
-            this.delete(key);
-        }
-        this.setup();
-    }
+type ClientLists = {
+    publishers: KeyValue<ClientList|undefined>,
+    subscribers: KeyValue<ClientList|undefined>,
 }
 
+type Entries = KeyValue;
 
+export class SharedState {
+    public readonly clientLists: ClientLists = {
+        publishers: {},
+        subscribers: {}
+    };
+
+    private readonly proxies: KeyValue<{id: string, proxy: KeyValue}> = {};
+
+    public get entries() {
+        const copy = _.cloneDeep(this._entries);
+        return Object.freeze(copy);
+    }
+    private readonly _entries: Entries = {};
+
+    /**
+     * Resets the whole state
+     */
+    public clear() {
+        for (const key in this.proxies) {
+            delete this.proxies[key];
+        }
+        for (const key in this.clientLists.publishers) {
+            delete this.clientLists.publishers[key];
+        }
+        for (const key in this.clientLists.subscribers) {
+            delete this.clientLists.subscribers[key];
+        }
+        for (const key in this._entries) {
+            delete this._entries[key];
+        }
+    }
+
+    private getList(type: keyof typeof this.clientLists, key: string) {
+        const path = key.split(".");
+        const levels = path.reduce<string[]>((previous, current) => previous.length ? [...previous, `${previous[previous.length - 1]}.${current}`] : [current], []).reverse();
+
+        const list = levels.reduce<ClientList|undefined>((found, currentLevel) => found || this.clientLists[type][currentLevel], undefined);
+        return list;
+    }
+
+    /**
+     * Creates an object that will act as an proxy for keys on the state with a given preffix.
+     * @param preffix
+     * @param object
+     * @param overwrite If a proxy for this preffix already exists,
+     * disables the old proxy and overwrites it with a new one if this parameter is set to `true`,
+     * or returns the existing one if this parameter is set to `false`.
+     */
+    private proxy<T extends Object>(preffix: string, object: T, overwrite: boolean = true): T {
+        if (this.proxies[preffix] && !overwrite) {
+            return this.proxies[preffix].proxy as T;
+        }
+
+        const id = UUID();
+        const active = () => this.proxies[preffix]?.id === id;
+        const key = (subkey: string) => `${preffix}.${subkey}`;
+
+        const proxy = new Proxy(object, {
+            get: (target: any, subkey: string) => {
+                if (active() && typeof subkey === "string") {
+                    return this.read(key(subkey));
+                } else {
+                    return target[subkey];
+                }
+            },
+            set: (target: any, subkey: string, newValue: any) => {
+                if (active() && typeof subkey === "string") {
+                    this.write(key(subkey), newValue);
+                    return true;
+                } else {
+                    target[subkey] = newValue;
+                    return true;
+                }
+            },
+            deleteProperty: (target: any, subkey: string) => {
+                if (active() && typeof subkey === "string") {
+                    return this.delete(key(subkey));
+                } else {
+                    delete target[subkey];
+                    return true;
+                }
+            }
+        });
+
+        Logger.trace(`proxy %s${this.proxies[preffix] ? " (overwritten)" : ""}`, preffix);
+
+        this.proxies[preffix] = {id, proxy};
+        return proxy;
+    }
+
+    /**
+     * Writes a new value into the state
+     * @param key
+     * @param value
+     */
+    public write<T>(key: string, value: T): T {
+        Logger.trace("write %s %o", key, value);
+        const _write = <T>(object: any, key: string, value: T, preffix: string = ""): T => {
+            const path = key.split(".");
+            const superkey = (subkey: string) => preffix ? `${preffix}.${subkey}` : subkey;
+
+            if (path.length > 1) {
+                const child = () => object[path[0]];
+                const subkey = path.slice(1).join(".");
+
+                if (!(child() instanceof Object)) {
+                    _write(object, path[0], {});
+                }
+                return _write(child(), subkey, value, superkey(path[0]));
+            } else {
+                const previousValue = object[key];
+                object[key] = value;
+
+                const completeKey = superkey(key);
+
+                if (!_.isEqual(previousValue, value)) {
+                    const list = this.getList("subscribers", completeKey);
+                    if (list) {
+                        list.forEach(subscriber => subscriber.view.update(completeKey, value));
+                    }
+                }
+
+                return value instanceof Object ?
+                    this.proxy(completeKey, value, true)
+                    : value;
+            }
+        }
+        return _write<T>(this._entries, key, value);
+    }
+
+    /**
+     * Reads a value on the state
+     * @param key
+     * @returns The value, if the key exists. Returns `undefined` otherwise.
+     */
+    public read<T = any>(key: string): T|undefined {
+        const _read = <T = any>(object: any, key: string, preffix: string = ""): T|undefined => {
+            if (!object) return undefined;
+            const superkey = (subkey: string) => preffix ? `${preffix}.${subkey}` : subkey;
+
+            const path = key.split(".");
+
+            if (path.length > 1) {
+                const child = object[path[0]];
+                const subkey = path.slice(1).join(".");
+                return _read(child, subkey, superkey(path[0]));
+            } else {
+                const value = object[key];
+                return value instanceof Object ?
+                    this.proxy(superkey(key), value, false)
+                    : value;
+            }
+        }
+        const value = _read<T>(this._entries, key);
+        Logger.trace("read %s %o", key, value);
+        return value;
+    }
+
+    /**
+     * Deletes an existing key on the state
+     * @param key
+     * @returns `true` if the key existed before deletion, `false` otherwise.
+     */
+    public delete(key: string): boolean {
+        const _delete = (object: any, key: string): boolean => {
+            const path = key.split(".");
+
+            if (path.length > 1) {
+                const child = object[path[0]];
+                const subkey = path.slice(1).join(".");
+                if (!child) return false;
+
+                return _delete(child, subkey);
+            } else {
+                if (!Object.keys(object).includes(key)) {
+                    delete object[key];
+                    return false;
+                } else {
+                    delete object[key];
+                    return true;
+                }
+            }
+        }
+        const success = _delete(this._entries, key);
+        Logger.trace("delete %s %s", key, success);
+        return success;
+    }
+}

@@ -8,3 +8,16 @@ export interface SharedIOBaseInput {
     id: string;
     data: KeyValue;
 }
+
+/**
+ * Sends updates of the user view in a given channel
+ */
+ export interface WriteInput extends SharedIOBaseInput {
+    type: "write";
+    data: {
+        changes: KeyValue
+    }
+}
+
+export type Input =
+    | WriteInput;

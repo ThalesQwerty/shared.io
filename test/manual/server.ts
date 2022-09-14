@@ -6,7 +6,7 @@ const server = new SharedIO.Server({
 }).start();
 
 server.state.write("test", 0);
-server.state.clientLists.subscribers["test"] = new ClientList();
+server.state.clientLists.publishers["test"] = server.state.clientLists.subscribers["test"] = new ClientList();
 
 server.on("connection", event => {
     console.log("New user connected! :)");
@@ -18,5 +18,5 @@ server.on("disconnection", () => {
 })
 
 setInterval(() => {
-    server.state.write("test", server.state.read("test") + 1);
+    console.log(server.state.entries);
 }, 1000);

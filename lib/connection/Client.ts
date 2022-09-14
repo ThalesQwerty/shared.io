@@ -1,6 +1,6 @@
 import _ from "lodash";
 import { HasId_Mixin, KeyValue, View, CustomEvent, CustomEventEmitter, UUID } from "..";
-import { Output, Server } from ".";
+import { Output, Input, Server } from ".";
 import { WebSocket } from "ws";
 
 type ClientEvents = {
@@ -59,6 +59,22 @@ export class Client extends HasId_Mixin<new () => CustomEventEmitter<ClientEvent
         if (ws) {
             ws.on("close", () => {
                 this.emit("close", { client: this });
+            })
+
+            ws.on("message", (message) => {
+                try {
+                    const input = JSON.parse(message.toString()) as Input;
+
+                    switch (input.type) {
+                        case "write":
+                            for (const key in input.data.changes) {
+                                const value = input.data.changes[key];
+
+                                this.server.state.write(key, value, this);
+                            }
+                            break;
+                    }
+                } catch {}
             })
         }
     }

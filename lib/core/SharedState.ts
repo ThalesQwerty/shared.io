@@ -1,5 +1,5 @@
 import { ClientList } from ".";
-import { KeyValue, UUID, Logger } from "..";
+import { KeyValue, UUID, Logger, Client } from "..";
 import _ from "lodash";
 
 type ClientLists = {
@@ -103,9 +103,26 @@ export class SharedState {
      * Writes a new value into the state
      * @param key
      * @param value
+     * @param client The client who's attempting to change this value
      */
-    public write<T>(key: string, value: T): T {
+    public write<T>(key: string, value: T, client: Client): T|undefined;
+
+    /**
+     * Writes a new value into the state
+     * @param key
+     * @param value
+     */
+    public write<T>(key: string, value: T): T;
+
+    public write<T>(key: string, value: T, client?: Client): T|undefined {
         Logger.trace("write %s %o", key, value);
+
+        const publishers = this.getList("publishers", key);
+
+        if (client && !publishers?.includes(client)) {
+            return this.read(key) as T;
+        }
+
         const _write = <T>(object: any, key: string, value: T, preffix: string = ""): T => {
             const path = key.split(".");
             const superkey = (subkey: string) => preffix ? `${preffix}.${subkey}` : subkey;

@@ -70,6 +70,7 @@ export class Client extends HasId_Mixin<new () => CustomEventEmitter<ClientEvent
                             for (const key in input.data.changes) {
                                 const value = input.data.changes[key];
 
+                                this.view.update(key, value, false);
                                 this.server.state.write(key, value, this);
                             }
                             break;

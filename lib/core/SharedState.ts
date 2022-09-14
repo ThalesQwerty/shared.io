@@ -120,7 +120,7 @@ export class SharedState {
         const publishers = this.getList("publishers", key);
 
         if (client && !publishers?.includes(client)) {
-            return this.read(key) as T;
+            return this.read<T>(key);
         }
 
         const _write = <T>(object: any, key: string, value: T, preffix: string = ""): T => {

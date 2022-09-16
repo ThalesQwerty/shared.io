@@ -12,7 +12,7 @@ export class Entity extends HasId {
 
         const { state } = server;
 
-        const proxy = state.write(this.id, this);
+        const proxy = state.write(this.id, {}) as this;
         this.proxy = proxy as Writeable<this>;
 
         this.proxy.id = this.id;

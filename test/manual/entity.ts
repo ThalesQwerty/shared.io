@@ -23,18 +23,17 @@ class TestEntity extends Entity {
     array = ["zero", "one", "two"];
 }
 
+console.log("Oi!");
+
 const server = new Server();
 
 const entity = new TestEntity(server);
 
-console.log(server.state.view());
+console.log("entries", server.state.entries);
 
 entity.array.push("three");
 entity.array.push("four");
 
-const four = server.state.entries[`${entity.id}.array.4`];
-
 entity.array.pop();
-console.log(server.state.view());
-console.log(four.read());
+console.log(server.state.entries);
 console.log(entity.array);

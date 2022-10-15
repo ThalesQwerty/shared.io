@@ -4,6 +4,7 @@ import { CustomEventEmitter, KeyValue, CustomEvent } from "..";
 type ViewEvents = {
     update: (event: { changes: KeyValue }) => void;
     reload: (event: { view: KeyValue }) => void;
+    write: (event: { key: string, oldValue: unknown, newValue: unknown }) => void;
 }
 
 export type ViewEvent<name extends keyof ViewEvents> = CustomEvent<ViewEvents, name>;
@@ -30,7 +31,8 @@ export class View extends CustomEventEmitter<ViewEvents> {
 
         if (!_.isEqual(oldValue, value)) {
             if (shouldEmitEvent) {
-                this.changes[key] = value;
+                this.changes[key] = value ?? null;
+                this.emit("write", { key, oldValue, newValue: value });
                 if (!alreadyHadChanges) {
                     process.nextTick(() => {
                         this.emit("update", {

@@ -1,16 +1,22 @@
 import SharedIO from "../..";
-import { ClientList } from "../../lib";
+import { Entity, Server } from "../../lib";
 
-const server = new SharedIO.Server({
+const server = new Server({
     port: 3000
 }).start();
 
-server.state.write("test", 0);
-server.state.clientLists.publishers["test"] = server.state.clientLists.subscribers["test"] = new ClientList();
+class TestEntity extends Entity {
+    name = "Thales";
+    power = 9001;
+    counter = 0;
+}
+
+const testEntity = new TestEntity(server);
 
 server.on("connection", event => {
     console.log("New user connected! :)");
-    server.state.clientLists.subscribers["test"]!.add(event.client);
+    server.state.setList("subscribers", testEntity.id).add(event.client);
+    server.state.setList("publishers", testEntity.id).add(event.client);
 })
 
 server.on("disconnection", () => {
@@ -18,5 +24,6 @@ server.on("disconnection", () => {
 })
 
 setInterval(() => {
-    console.log(server.state.entries);
+    testEntity.counter ++;
+    // console.log(server.state.entries);
 }, 1000);

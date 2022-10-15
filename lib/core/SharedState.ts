@@ -41,11 +41,30 @@ export class SharedState {
         }
     }
 
-    private getList(type: keyof typeof this.clientLists, key: string) {
+    /**
+     * Attempts to find a client list of a given key. If not found, attempts to find on its antecessors. If still not found, returns `undefined`.
+     * @param type Should it look for a subscriber list or a publisher list?
+     * @param key
+     */
+    public getList(type: keyof typeof this.clientLists, key: string) {
         const path = key.split(".");
-        const levels = path.reduce<string[]>((previous, current) => previous.length ? [...previous, `${previous[previous.length - 1]}.${current}`] : [current], []).reverse();
+        const levels = path.reduce<string[]>((previous, current) => previous.length ? [...previous, `${previous.pop()}.${current}`] : [current], []).reverse();
 
-        const list = levels.reduce<ClientList|undefined>((found, currentLevel) => found || this.clientLists[type][currentLevel], undefined);
+        const list = levels.reduce<ClientList|undefined>((found, currentLevel) => {
+            return found || this.clientLists[type][currentLevel];
+        }, undefined);
+
+        return list;
+    }
+
+    /**
+     * Creates and returns a new list for a given key, if it doesn't already exists (otherwise simply returns the existant list).
+     * @param type Should it create a subscriber list or a publisher list?
+     * @param key
+     */
+    public setList(type: keyof typeof this.clientLists, key: string, id?: string) {
+        const list = this.clientLists[type][key] ??= new ClientList(id);
+        list.watchedKeys.add(key);
         return list;
     }
 
@@ -143,9 +162,7 @@ export class SharedState {
 
                 if (!_.isEqual(previousValue, value)) {
                     const list = this.getList("subscribers", completeKey);
-                    if (list) {
-                        list.forEach(subscriber => subscriber.view.update(completeKey, value));
-                    }
+                    list?.forEach(client => client.view.update(key, value));
                 }
 
                 return value instanceof Object ?
@@ -159,9 +176,16 @@ export class SharedState {
     /**
      * Reads a value on the state
      * @param key
+     * @param client The client who's attempting to read this property. Default is `undefined`
      * @returns The value, if the key exists. Returns `undefined` otherwise.
      */
-    public read<T = any>(key: string): T|undefined {
+    public read<T = any>(key: string, client?: Client): T|undefined {
+        const subscribers = this.getList("subscribers", key);
+
+        if (client && !subscribers?.includes(client)) {
+            return undefined;
+        }
+
         const _read = <T = any>(object: any, key: string, preffix: string = ""): T|undefined => {
             if (!object) return undefined;
             const superkey = (subkey: string) => preffix ? `${preffix}.${subkey}` : subkey;
@@ -181,6 +205,7 @@ export class SharedState {
         }
         const value = _read<T>(this._entries, key);
         Logger.trace("read %s %o", key, value);
+
         return value;
     }
 

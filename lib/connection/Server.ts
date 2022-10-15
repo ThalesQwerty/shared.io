@@ -46,6 +46,8 @@ export class Server extends CustomEventEmitter<ServerEvents> {
             const client = new Client(this, ws);
             this.clients.add(client);
 
+            client.view.reload();
+
             this.emit("connection", { client });
 
             client.on("close", () => {

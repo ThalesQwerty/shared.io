@@ -40,6 +40,16 @@ export class Client extends HasId_Mixin<new () => CustomEventEmitter<ClientEvent
         this.sendRaw(outputWithId);
     }
 
+    /**
+     * Attempts to read the value of a given key on the server state and updates the view
+     * @param key
+     */
+    read<T = any>(key: string): T|undefined {
+        const value = this.server.state.read(key, this);
+        this.view.update(key, value);
+        return value;
+    }
+
     private sendView(changes: KeyValue) {
         return this.send({
             type: "view",

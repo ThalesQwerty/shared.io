@@ -4,12 +4,11 @@ import { SharedState } from "../../lib/core/SharedState";
 describe("Shared state", () => {
 
     const server: Server = new Server();
-    let state: SharedState;
+    const { state } = server;
     let clientA: Client;
     let clientB: Client;
 
     beforeEach(() => {
-        state = new SharedState();
         clientA = new Client(server);
         clientB = new Client(server);
     });
@@ -19,11 +18,10 @@ describe("Shared state", () => {
     });
 
     describe("View", () => {
-        it ("Notifies subscribers", () => {
-            const list = new ClientList();
+        it ("Notifies current subscribers", () => {
+            const list = state.setList("subscribers", "test");
             list.add(clientA);
 
-            state.clientLists.subscribers["test"] = list;
             state.write("test", 0);
             expect(clientA.view.state).toEqual({ test: 0 });
 
@@ -31,11 +29,23 @@ describe("Shared state", () => {
             expect(clientA.view.state).toEqual({ test: 1 });
         });
 
+        it ("Notifies new subscribers", () => {
+            const list = state.setList("subscribers", "test");
+
+            state.write("test", 0);
+            expect(clientA.view.state).toEqual({});
+
+            list.add(clientA);
+            expect(clientA.view.state).toEqual({ test: 0 });
+
+            state.write("test", 1);
+            expect(clientA.view.state).toEqual({ test: 1 });
+        });
+
         it ("Differentiates subscribers", () => {
-            const list = new ClientList();
+            const list = state.setList("subscribers", "test");
             list.add(clientA);
 
-            state.clientLists.subscribers["test"] = list;
             state.write("test", 0);
             expect(clientA.view.state).toEqual({ test: 0 });
             expect(clientB.view.state).toEqual({});

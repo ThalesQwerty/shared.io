@@ -1,7 +1,9 @@
-import { IdList, KeyValue, HasId, UUID, Client } from "..";
+import { IdList, KeyValue, HasId, UUID, Client, View, List } from "..";
 
 export class ClientList extends IdList<Client> {
     protected static readonly all: KeyValue<ClientList> = {};
+
+    public readonly watchedKeys = new List<string>();
 
     /**
      * Gets a client list by its ID, or creates a new one, if not found.
@@ -24,6 +26,17 @@ export class ClientList extends IdList<Client> {
         this.forEach(client => client.send(...params));
     }
 
+    public override add(client: Client) {
+        if (!this.includes(client)) {
+            super.add(client);
+            for (const key of this.watchedKeys) {
+                client.read(key);
+            }
+        }
+    }
+
+    public readonly view = new View();
+
     constructor(
         /**
          * Random unique universal identifier string associated with this client list
@@ -33,6 +46,6 @@ export class ClientList extends IdList<Client> {
     ) {
         super(...items);
         ClientList.all[id] = this;
-        // Object.setPrototypeOf(this, ClientList.prototype);
+        Object.setPrototypeOf(this, ClientList.prototype);
     }
 };

@@ -17,11 +17,11 @@ server.on("connection", event => {
     console.log("New user connected! :)");
     server.state.setList("subscribers", testEntity.id).add(event.client);
     server.state.setList("publishers", testEntity.id).add(event.client);
-})
+});
 
 server.on("disconnection", () => {
     console.log("User disconnected :(");
-})
+});
 
 setInterval(() => {
     testEntity.counter ++;

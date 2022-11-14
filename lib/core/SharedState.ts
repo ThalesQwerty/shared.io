@@ -162,7 +162,7 @@ export class SharedState {
 
                 if (!_.isEqual(previousValue, value)) {
                     const list = this.getList("subscribers", completeKey);
-                    list?.forEach(client => client.view.update(key, value));
+                    list?.forEach(client => client.view.update(completeKey, value));
                 }
 
                 return value instanceof Object ?

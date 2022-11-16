@@ -1,2 +1,2 @@
-// export * from "./Channel";
+export * from "./Channel";
 export * from "./Entity";

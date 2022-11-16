@@ -39,6 +39,13 @@ export class ClientList extends IdList<Client> {
 
     public readonly view = new View();
 
+    /**
+     * Attemps to find and return a client list with a given ID. If not found, creates a new one.
+     */
+    public static findOrCreate(id: string) {
+        return ClientList.all[id] ?? new ClientList(id);
+    }
+
     constructor(
         /**
          * Random unique universal identifier string associated with this client list

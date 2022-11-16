@@ -1,5 +1,5 @@
 import _ from "lodash";
-import { HasId_Mixin, KeyValue, View, CustomEvent, CustomEventEmitter, UUID } from "..";
+import { HasId_Mixin, KeyValue, View, CustomEvent, CustomEventEmitter, UUID, Channel } from "..";
 import { Output, Input, Server } from ".";
 import { WebSocket } from "ws";
 
@@ -16,7 +16,7 @@ export class Client extends HasId_Mixin<new () => CustomEventEmitter<ClientEvent
     public readonly view: View;
 
     public get connected() {
-        return this.ws && this.ws.readyState === WebSocket.OPEN;
+        return !!this.ws && this.ws.readyState === WebSocket.OPEN;
     }
 
     /**
@@ -48,6 +48,14 @@ export class Client extends HasId_Mixin<new () => CustomEventEmitter<ClientEvent
         const value = this.server.state.read(key, this);
         this.view.update(key, value);
         return value;
+    }
+
+    /**
+     * Verifies whether or not this client is in a channel
+     * @param channel
+     */
+    isInChannel(channel: Channel) {
+        return channel.users.includes(this);
     }
 
     private sendView(changes: KeyValue) {

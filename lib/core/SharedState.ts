@@ -60,10 +60,11 @@ export class SharedState {
     /**
      * Creates and returns a new list for a given key, if it doesn't already exists (otherwise simply returns the existant list).
      * @param type Should it create a subscriber list or a publisher list?
-     * @param key
+     * @param key WHich key does this list apply for?
+     * @param id Should it use an already existing client list?
      */
     public setList(type: keyof typeof this.clientLists, key: string, id?: string) {
-        const list = this.clientLists[type][key] ??= new ClientList(id);
+        const list = this.clientLists[type][key] ??= id ? ClientList.findOrCreate(id) : new ClientList();
         list.watchedKeys.add(key);
         return list;
     }

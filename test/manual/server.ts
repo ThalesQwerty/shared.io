@@ -1,5 +1,5 @@
 import SharedIO from "../..";
-import { Entity, Server } from "../../lib";
+import { Entity, Server, Channel } from "../../lib";
 
 const server = new Server({
     port: 3000
@@ -11,19 +11,35 @@ class TestEntity extends Entity {
     counter = 0;
 }
 
-const testEntity = new TestEntity(server);
+class TestChannel extends Channel {
 
-server.on("connection", event => {
+}
+
+const testChannel = new TestChannel(server);
+const testEntity = testChannel.createEntity(TestEntity);
+
+server.on("connection", ({ client }) => {
+    testChannel.addClient(client);
     console.log("New user connected! :)");
-    server.state.setList("subscribers", testEntity.id).add(event.client);
-    server.state.setList("publishers", testEntity.id).add(event.client);
+
+    setInterval(() => {
+        if (client.connected) {
+            if (client.isInChannel(testChannel)) {
+                console.log("Removed user from channel");
+                testChannel.removeClient(client);
+            } else {
+                console.log("Added user to channel");
+                testChannel.addClient(client);
+            }
+        }
+    }, 3000);
 });
 
-server.on("disconnection", () => {
+server.on("disconnection", ({ client }) => {
+    testChannel.removeClient(client);
     console.log("User disconnected :(");
 });
 
 setInterval(() => {
     testEntity.counter ++;
-    // console.log(server.state.entries);
 }, 1000);

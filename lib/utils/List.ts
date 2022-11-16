@@ -36,7 +36,11 @@ export class List<T> extends Array<T> {
      * @param element The element to be included into the list
      */
     add(element: T) {
-        if (!this.includes(element)) this.push(element);
+        if (!this.includes(element)) {
+            this.push(element);
+            return true;
+        }
+        return false;
     }
 
     /**

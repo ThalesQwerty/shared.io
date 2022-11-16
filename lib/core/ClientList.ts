@@ -32,7 +32,9 @@ export class ClientList extends IdList<Client> {
             for (const key of this.watchedKeys) {
                 client.read(key);
             }
+            return true;
         }
+        return false;
     }
 
     public readonly view = new View();

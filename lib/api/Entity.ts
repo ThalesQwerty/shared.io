@@ -1,4 +1,4 @@
-import { Client, HasId, Server, Schema } from "../";
+import { Client, HasId, Server, Schema, Channel, ClientList } from "../";
 export class Entity extends HasId {
     public get type() {
         return this.constructor.name;
@@ -11,6 +11,8 @@ export class Entity extends HasId {
     public static get schema() {
         return Schema.entities[this.prototype.constructor.name];
     }
+
+    public channel: Channel|null = null;
 
     private readonly proxy: Writeable<this>;
 
@@ -25,6 +27,8 @@ export class Entity extends HasId {
         this.proxy.id = this.id;
         this.proxy.type = this.type;
         this.proxy.owner = owner;
+
+        server.entities.add(this);
 
         return proxy;
     }

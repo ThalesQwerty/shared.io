@@ -1,4 +1,4 @@
-import { Client, ClientList, HasId, Server, Entity } from "../";
+import { Client, ClientList, HasId, Server, Entity, List } from "../";
 
 export class Channel extends HasId {
     public get type() {
@@ -6,10 +6,12 @@ export class Channel extends HasId {
     }
 
     public readonly users: ClientList;
+    public readonly entities: List<Entity> = new List<Entity>();
 
     constructor(public readonly server: Server) {
         super();
         this.users = new ClientList(this.id);
+        server.channels.add(this);
     }
 
     /**
@@ -19,6 +21,7 @@ export class Channel extends HasId {
         const newEntity = new entityType(this.server, owner);
 
         this.server.state.setList("subscribers", newEntity.id, this.id);
+        this.entities.push(newEntity);
 
         return newEntity;
     }

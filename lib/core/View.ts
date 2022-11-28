@@ -1,5 +1,5 @@
 import _ from "lodash";
-import { CustomEventEmitter, KeyValue, CustomEvent } from "..";
+import { CustomEventEmitter, KeyValue, CustomEvent, ExecutionQueue } from "..";
 
 type ViewEvents = {
     update: (event: { changes: KeyValue }) => void;

@@ -1,10 +1,11 @@
 import { WebSocketServer } from "ws";
 import { SharedState } from "../core";
 import { Client } from ".";
-import { CustomEvent, CustomEventEmitter, ClientList } from "..";
+import { CustomEvent, CustomEventEmitter, ClientList, List, Entity, Channel } from "..";
 
 const DEFAULT_CONFIG: ServerConfig = {
-    port: 3000
+    port: 3000,
+    syncRate: 64
 };
 
 type ServerEvents = {
@@ -26,9 +27,17 @@ export class Server extends CustomEventEmitter<ServerEvents> {
     private wss?: WebSocketServer;
 
     public readonly clients: ClientList = new ClientList();
+    public readonly channels: List<Channel> = new List<Channel>();
+    public readonly entities: List<Entity> = new List<Entity>();
 
-    public constructor(public readonly config: ServerConfig = DEFAULT_CONFIG) {
+    public readonly config: ServerConfig = DEFAULT_CONFIG;
+
+    private syncInterval: NodeJS.Timer | null = null;
+
+    public constructor(config: Partial<ServerConfig> = {}) {
         super();
+
+        this.config = { ...this.config, ...config };
         this.state = new SharedState();
     }
 
@@ -55,20 +64,43 @@ export class Server extends CustomEventEmitter<ServerEvents> {
             })
         });
 
+        if (this.syncInterval) clearInterval(this.syncInterval);
+        setInterval(() => this.sync(), Math.round(1000 / this.config.syncRate));
+
         return this;
     }
 
     /**
-     * Stops the server and forcefully disconnects all users
-     */
+ * Stops the server and forcefully disconnects all users
+ */
     public stop() {
         this.wss?.close();
         this.wss?.removeAllListeners();
+        if (this.syncInterval) clearInterval(this.syncInterval);
 
         return this;
+    }
+
+    public sync() {
+        for (const channel of this.channels) {
+            for (const client of channel.users) {
+                for (const entity of channel.entities) {
+                    client.updateFlags(entity);
+                }
+            }
+        }
+
+        for (const client of this.clients) {
+            client.sync();
+        }
     }
 }
 
 export interface ServerConfig {
-    port: number
+    port: number,
+
+    /**
+     * How many times per second will clients synchronize with the server? (Default is 64)
+     */
+    syncRate: number
 }

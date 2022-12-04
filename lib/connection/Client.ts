@@ -1,5 +1,5 @@
 import _ from "lodash";
-import { HasId_Mixin, KeyValue, View, CustomEvent, CustomEventEmitter, UUID, Channel, ExecutionQueue, Entity, ClientList, List } from "..";
+import { HasId_Mixin, KeyValue, View, CustomEvent, CustomEventEmitter, UUID, Channel, ExecutionQueue } from "..";
 import { Output, Input, Server } from ".";
 import { WebSocket } from "ws";
 
@@ -14,7 +14,6 @@ export type ClientEvent<name extends keyof ClientEvents> = CustomEvent<ClientEve
  */
 export class Client extends HasId_Mixin<new () => CustomEventEmitter<ClientEvents>>(CustomEventEmitter) {
     readonly view: View;
-    readonly channels: List<Channel> = new List<Channel>();
 
     private readonly queues: KeyValue<ExecutionQueue, "input"|"output"> = {
         output: new ExecutionQueue<KeyValue>(output => this.sendView(output)),
@@ -92,39 +91,6 @@ export class Client extends HasId_Mixin<new () => CustomEventEmitter<ClientEvent
                 }
                 break;
         }
-    }
-
-    updateFlags(entity: Entity) {
-        const { schema } = entity;
-        let currentScore = 0;
-
-        const numFlags = schema.flags.length;
-        const numLists = Math.pow(2, numFlags);
-
-        const lists = new Array(numLists).fill(null).map((_, score) => ClientList.id(`${entity.id}/${score}`));
-
-        for (let index = 0; index < numFlags; index++) {
-            const flagName = schema.flags[index];
-            const flagValue = Math.pow(2, index);
-
-            const flag = entity[flagName];
-            const hasFlag = typeof flag === "function" ? flag(this) : flag;
-
-            if (hasFlag) {
-                currentScore += flagValue;
-            }
-        }
-
-        for (let score = 0; score < numLists; score++) {
-            const currentList = lists[score];
-            if (score === currentScore) {
-                currentList.add(this);
-            } else {
-                currentList.remove(this);
-            }
-        }
-
-        return currentScore;
     }
 
     constructor(public readonly server: Server, private readonly ws?: WebSocket) {

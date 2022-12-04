@@ -82,14 +82,6 @@ export class Server extends CustomEventEmitter<ServerEvents> {
     }
 
     public sync() {
-        for (const channel of this.channels) {
-            for (const client of channel.users) {
-                for (const entity of channel.entities) {
-                    client.updateFlags(entity);
-                }
-            }
-        }
-
         for (const client of this.clients) {
             client.sync();
         }

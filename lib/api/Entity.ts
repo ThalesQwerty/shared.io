@@ -1,4 +1,5 @@
 import { Client, HasId, Server, Schema, Channel, ClientList } from "../";
+import { EntityFlagName, Flag } from "./Flag";
 export class Entity extends HasId {
     public get type() {
         return this.constructor.name;
@@ -19,7 +20,7 @@ export class Entity extends HasId {
     constructor(public readonly server: Server, owner: Client|null = null) {
         super();
 
-        const { state } = server;
+        const { state, entities } = server;
 
         const proxy = state.write(this.id, {}) as this;
         this.proxy = proxy as Writeable<this>;
@@ -28,7 +29,7 @@ export class Entity extends HasId {
         this.proxy.type = this.type;
         this.proxy.owner = owner;
 
-        server.entities.add(this);
+        entities.add(this);
 
         return proxy;
     }

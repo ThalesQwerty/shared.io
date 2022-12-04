@@ -28,7 +28,10 @@ export function HasId_Mixin<Base extends Class>(base: Base) {
             super(...args);
             this.id = UUID();
         }
-    }
+    } as Base & (new (...args: any[]) => {
+        readonly id: string;
+        is: <T extends HasId>(object: T) => boolean
+    });
 }
 
 export class HasId extends HasId_Mixin(class {}) {};

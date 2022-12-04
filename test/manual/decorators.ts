@@ -1,10 +1,10 @@
-import { Entity, Server, Decorators } from "../../lib";
+import { Entity, Server, Decorators, HasId, Client } from "../../lib";
+import { Flag } from "../../lib/api/Flag";
 
-const { input, output, inputIf, outputIf, hidden, hiddenIf, flag } = Decorators("ally", "test");
+const { input, output, hidden, inputIf, outputIf, hiddenIf, flag } = Decorators("ally");
 
 class TestEntity extends Entity {
-    @flag ally = true;
-    @flag test = false;
+    @flag ally = new Flag(this);
 
     @input um = 1;
 

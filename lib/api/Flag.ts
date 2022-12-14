@@ -56,7 +56,7 @@ export class Flag {
     /**
      * Assigns this flag to a given client. Returns `true` if the client didn't have this flag already, returns `false` otherwise.
      */
-    public assign(client: Client) {
+    public assignTo(client: Client) {
         const success = this.clients.add(client);
 
         if (success) {
@@ -70,7 +70,7 @@ export class Flag {
     /**
      * Revokes this flag from a given client. Returns `false` if the client didn't have this flag already, returns `true` otherwise.
      */
-    public revoke(client: Client) {
+    public revokeFrom(client: Client) {
         const success = this.clients.remove(client);
 
         if (success) {
@@ -82,16 +82,9 @@ export class Flag {
     }
 
     /**
-     * Assigns this flag to a given client, if it doesn't have it. Revokes it if it already has it.
-     */
-    public toggle(client: Client) {
-        this.clients.includes(client) ? this.revoke(client) : this.assign(client);
-    }
-
-    /**
      * Verifies if a given client has this flag
      */
-    public has(client: Client) {
+    public isAssignedTo(client: Client) {
         return this.clients.includes(client);
     }
 }

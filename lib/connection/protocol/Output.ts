@@ -4,7 +4,7 @@ import { KeyValue } from "../..";
  * Base interface for outputs
  */
 export interface SharedIOBaseOutput {
-    type: "auth" | "ping" | "view" | "write" | "call" | "return" | "join" | "leave";
+    type: "auth" | "ping" | "view" | "return" | "write" | "call" | "return" | "join" | "leave";
     id: string;
     data: KeyValue;
 }
@@ -19,5 +19,14 @@ export interface ViewOutput extends SharedIOBaseOutput {
     }
 }
 
+export interface ReturnOutput extends SharedIOBaseOutput {
+    type: "return";
+    data: {
+        inputId: string;
+        returnedValue: unknown;
+    }
+}
+
 export type Output =
-    | ViewOutput;
+    | ViewOutput
+    | ReturnOutput;

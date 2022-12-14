@@ -19,5 +19,15 @@ export interface SharedIOBaseInput {
     }
 }
 
+export interface CallInput extends SharedIOBaseInput {
+    type: "call";
+    data: {
+        entityId: string,
+        methodName: string,
+        parameters: any[]
+    }
+}
+
 export type Input =
-    | WriteInput;
+    | WriteInput
+    | CallInput;

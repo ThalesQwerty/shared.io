@@ -37,10 +37,10 @@ export class Client extends HasId_Mixin<new () => CustomEventEmitter<ClientEvent
      * Emits an output via websocket to this client
      */
     send(output: Output|Omit<Output, "id">) {
-        const outputWithId: Output = {
+        const outputWithId = {
             id: UUID(),
             ...output
-        };
+        } as Output;
 
         this.sendRaw(outputWithId);
     }
@@ -81,13 +81,36 @@ export class Client extends HasId_Mixin<new () => CustomEventEmitter<ClientEvent
     }
 
     private handleInput(input: Input) {
+        const { view, server } = this;
+
         switch (input.type) {
             case "write":
                 for (const key in input.data.changes) {
                     const value = input.data.changes[key];
 
-                    this.view.update(key, value, false);
-                    this.server.state.write(key, value, this);
+                    view.update(key, value, false);
+                    server.state.write(key, value, this);
+                }
+                break;
+            case "call":
+                const entity = server.entities[input.data.entityId];
+
+                if (entity) {
+                    const method = (entity as any)[input.data.methodName];
+
+                    if (typeof method === "function") {
+                        const returnedValue = method(...input.data.parameters, this);
+
+                        if (returnedValue !== undefined && typeof returnedValue !== "function") {
+                            this.send({
+                                type: "return",
+                                data: {
+                                    inputId: input.id,
+                                    returnedValue
+                                }
+                            });
+                        }
+                    }
                 }
                 break;
         }

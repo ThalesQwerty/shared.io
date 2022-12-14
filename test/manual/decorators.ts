@@ -1,4 +1,4 @@
-import { Entity, Server, Decorators, HasId, Client } from "../../lib";
+import { Entity, Server, Decorators, HasId, Client, Channel } from "../../lib";
 import { Flag } from "../../lib/api/Flag";
 
 const { input, output, hidden, inputIf, outputIf, hiddenIf, flag } = Decorators("ally");
@@ -10,10 +10,11 @@ class TestEntity extends Entity {
 
     @inputIf(f => f.ally && f.owner)
     @outputIf(f => true)
-    dois = 2;
+    @output dois = 2;
 
-    method() {
-        console.log("test");
+    @inputIf(f => true)
+    method(client?: Client) {
+        console.log(client ? `Method called by client ${client.id}` : "Method called by server");
     }
 
     arrow = () => {
@@ -21,12 +22,21 @@ class TestEntity extends Entity {
     }
 }
 
-console.log("Oi!");
+class TestChannel extends Channel {}
 
-const server = new Server();
+const server = new Server({
+    port: 3000
+}).start();
 
-const entity = new TestEntity(server);
+const testChannel = new TestChannel(server);
+const testEntity = testChannel.createEntity(TestEntity);
 
-process.nextTick(() => {
-    console.dir(TestEntity.schema, { depth: null });
+server.on("connection", ({ client }) => {
+    testChannel.addClient(client);
+    console.log("New user connected! :)");
+});
+
+server.on("disconnection", ({ client }) => {
+    testChannel.removeClient(client);
+    console.log("User disconnected :(");
 });

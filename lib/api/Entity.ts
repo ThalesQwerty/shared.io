@@ -29,7 +29,7 @@ export class Entity extends HasId {
         this.proxy.type = this.type;
         this.proxy.owner = owner;
 
-        entities.add(this);
+        entities[this.id] = this;
 
         return proxy;
     }

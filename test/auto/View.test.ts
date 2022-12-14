@@ -1,7 +1,6 @@
-import { Client, ClientList, nextTick, Output, Server, UUID, ViewOutput } from "../../lib";
-import { SharedState } from "../../lib/core/SharedState";
+import { Client, nextTick, Output, Server, UUID } from "../../lib";
 
-describe("Shared state", () => {
+describe("View", () => {
 
     const server: Server = new Server();
     const { state } = server;
@@ -17,7 +16,7 @@ describe("Shared state", () => {
         state.clear();
     });
 
-    describe("View", () => {
+    describe("Lists", () => {
         it ("Notifies current subscribers", () => {
             const list = state.setList("subscribers", "test");
             list.add(clientA);
@@ -71,10 +70,10 @@ describe("Shared state", () => {
             clientA.send = function(...args: Parameters<Client["send"]>) {
                 const output = args[0];
 
-                const outputWithId: Output = {
+                const outputWithId = {
                     id: UUID(),
                     ...output
-                };
+                } as Output;
 
                 messagesSent.push(outputWithId);
             };
@@ -86,15 +85,15 @@ describe("Shared state", () => {
         });
 
         it ("Sends view updates", async () => {
-            const list = new ClientList();
+            const list = state.setList("subscribers", "test");
             list.add(clientA);
 
             expect(getLastMessage()).toBeUndefined();
 
-            state.clientLists.subscribers["test"] = list;
             state.write("test", 0);
 
             await nextTick();
+            clientA.sync();
 
             const lastMessage = messagesSent.pop();
             expect(lastMessage).toBeDefined();
@@ -104,15 +103,16 @@ describe("Shared state", () => {
         });
 
         it ("Detects changes correctly", async () => {
-            const list = new ClientList();
+            const list = state.setList("subscribers", "test");
             list.add(clientA);
 
             expect(getLastMessage()).toBeUndefined();
 
-            state.clientLists.subscribers["test"] = list;
             state.write("test", 0);
 
             await nextTick();
+            clientA.sync();
+
             let lastMessage = messagesSent.pop();
             expect(lastMessage).toBeDefined();
             expect(lastMessage!.id).toBeTruthy();
@@ -122,12 +122,16 @@ describe("Shared state", () => {
             state.write("test", 0);
 
             await nextTick();
+            clientA.sync();
+
             lastMessage = messagesSent.pop();
             expect(lastMessage).toBeUndefined();
 
             state.write("test", 1);
 
             await nextTick();
+            clientA.sync();
+
             lastMessage = messagesSent.pop();
             expect(lastMessage).toBeDefined();
             expect(lastMessage!.id).toBeTruthy();

@@ -2,7 +2,13 @@ import { Entity } from ".";
 import { KeyValue } from "../utils";
 import { EntitySchema, Schema } from "./Schema";
 
-type FlagCombination<FlagName extends string = "owner"> = KeyValue<boolean, FlagName|"owner">;
+type FlagCombination<FlagName extends string = "owner"> = {
+    /**
+     * Returns `true` if the current client has this flag assigned to it. Returns `false` otherwise.
+     */
+    [key in FlagName|"owner"]: boolean;
+};
+
 type DecoratorCondition<FlagName extends string = "owner"> = (flags: FlagCombination<FlagName>) => boolean;
 /**
  * Generates decorators
@@ -33,20 +39,17 @@ export function Decorators<FlagName extends string = "owner">(...flagNames: (Fla
     });
 
     function testAllCombinations(condition: DecoratorCondition<flag>): number[] {
-        const whitelist: number[] = [];
-        const blacklist: number[] = [-1];
+        const allowedScores: number[] = [];
 
         for (let score = 0; score < flagScores.length; score++) {
             const combination = flagScores[score];
 
             if (condition(combination)) {
-                whitelist.push(score);
-            } else {
-                blacklist.push(score);
+                allowedScores.push(score);
             }
         }
 
-        return blacklist.length < whitelist.length ? blacklist : whitelist;
+        return allowedScores;
     }
 
     function addCondition(conditionType: "input"|"output", condition: DecoratorCondition<flag>) {

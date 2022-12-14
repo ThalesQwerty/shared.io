@@ -1,7 +1,7 @@
 import { WebSocketServer } from "ws";
 import { SharedState } from "../core";
 import { Client } from ".";
-import { CustomEvent, CustomEventEmitter, ClientList, List, Entity, Channel } from "..";
+import { CustomEvent, CustomEventEmitter, ClientList, List, Entity, Channel, KeyValue } from "..";
 
 const DEFAULT_CONFIG: ServerConfig = {
     port: 3000,
@@ -28,7 +28,7 @@ export class Server extends CustomEventEmitter<ServerEvents> {
 
     public readonly clients: ClientList = new ClientList();
     public readonly channels: List<Channel> = new List<Channel>();
-    public readonly entities: List<Entity> = new List<Entity>();
+    public readonly entities: KeyValue<Entity> = {};
 
     public readonly config: ServerConfig = DEFAULT_CONFIG;
 

@@ -57,11 +57,8 @@ export function Decorators<FlagName extends string = "owner">(...flagNames: (Fla
             entity: EntityType,
             propertyName: string,
         ) {
-            const entitySchema: EntitySchema = Schema.entities[entity.type] ??= {
-                type: entity.type,
-                properties: {},
-                flags: flagNames
-            };
+            const entitySchema: EntitySchema = entity.schema;
+            if (!entitySchema.flags.length) entitySchema.flags = flagNames;
 
             const propertySchema = entitySchema.properties[propertyName] ??= {
                 name: propertyName,
@@ -84,26 +81,44 @@ export function Decorators<FlagName extends string = "owner">(...flagNames: (Fla
     });
 
     return {
+        /**
+         * Defines if this property or method will be writable/callable to each user based on which flags are activated or not
+         */
         inputIf(condition: DecoratorCondition<flag>) {
             return addCondition("input", condition);
         },
 
+        /**
+         * Defines if this property or method will be visible to each user based on which flags are activated or not
+         */
         outputIf(condition: DecoratorCondition<flag>) {
             return addCondition("output", condition);
         },
 
+        /**
+         * Defines if this property or method will be hidden from each user based on which flags are activated or not
+         */
         hiddenIf(condition: DecoratorCondition<flag>) {
             return addCondition("output", flags => !condition(flags));
         },
 
+        /**
+         * Only the entity owner can alter this property or call this method
+         */
         input<EntityType extends Entity>(entity: EntityType, propertyName: string) {
             addCondition("input", flags => flags.owner)(entity, propertyName);
         },
 
+        /**
+         * Every user can view this property or listen to this method's calls
+         */
         output<EntityType extends Entity>(entity: EntityType, propertyName: string) {
             addCondition("output", () => true)(entity, propertyName);
         },
 
+        /**
+         * Only the entity's owner can view this property or listen to this method's calls
+         */
         hidden<EntityType extends Entity>(entity: EntityType, propertyName: string) {
             addCondition("output", flags => flags.owner)(entity, propertyName);
         },

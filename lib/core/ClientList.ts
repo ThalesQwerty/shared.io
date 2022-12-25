@@ -6,13 +6,6 @@ export class ClientList extends IdList<Client> {
     public readonly watchedKeys = new List<string>();
 
     /**
-     * Gets a client list by its ID, or creates a new one, if not found.
-     */
-    public static id(id: string) {
-        return this.all[id] || new ClientList(id);
-    }
-
-    /**
      * Verifies if this object is the same as another one by comparing its IDs
      */
     public is<T extends HasId>(object: T) {
@@ -26,12 +19,25 @@ export class ClientList extends IdList<Client> {
         this.forEach(client => client.send(...params));
     }
 
+    private forcefullyUpdateKeys(client: Client) {
+        for (const key of this.watchedKeys) {
+            client.read(key);
+        }
+    }
+
     public override add(client: Client) {
         if (!this.includes(client)) {
             super.add(client);
-            for (const key of this.watchedKeys) {
-                client.read(key);
-            }
+            this.forcefullyUpdateKeys(client);
+            return true;
+        }
+        return false;
+    }
+
+    public override remove(client: Client) {
+        if (this.includes(client)) {
+            super.remove(client);
+            this.forcefullyUpdateKeys(client);
             return true;
         }
         return false;

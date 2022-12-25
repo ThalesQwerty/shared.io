@@ -29,7 +29,7 @@ const server = new Server({
 }).start();
 
 const testChannel = new TestChannel(server);
-const testEntity = testChannel.createEntity(TestEntity);
+const testEntity = new TestEntity(testChannel);
 
 server.on("connection", ({ client }) => {
     testChannel.addClient(client);

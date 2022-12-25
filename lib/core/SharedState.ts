@@ -1,5 +1,5 @@
 import { ClientList } from ".";
-import { KeyValue, UUID, Logger, Client } from "..";
+import { KeyValue, UUID, Logger, Client, CustomEvent, CustomEventEmitter } from "..";
 import _ from "lodash";
 
 type ClientLists = {
@@ -9,7 +9,13 @@ type ClientLists = {
 
 type Entries = KeyValue;
 
-export class SharedState {
+type SharedStateEvents = {
+    write: (event: { key: string, oldValue: unknown, newValue: unknown }) => void;
+}
+
+export type SharedStateEvent<name extends keyof SharedStateEvents> = CustomEvent<SharedStateEvents, name>;
+
+export class SharedState extends CustomEventEmitter<SharedStateEvents> {
     public readonly clientLists: ClientLists = {
         publishers: {},
         subscribers: {}
@@ -161,14 +167,22 @@ export class SharedState {
 
                 const completeKey = superkey(key);
 
+                const generatedValue = value instanceof Object ?
+                    this.proxy(completeKey, value, true)
+                    : value;
+
+                this.emit("write", {
+                    key: completeKey,
+                    oldValue: previousValue,
+                    newValue: generatedValue
+                });
+
                 if (!_.isEqual(previousValue, value)) {
                     const list = this.getList("subscribers", completeKey);
                     list?.forEach(client => client.view.update(completeKey, value));
                 }
 
-                return value instanceof Object ?
-                    this.proxy(completeKey, value, true)
-                    : value;
+                return generatedValue;
             }
         }
         return _write<T>(this._entries, key, value);

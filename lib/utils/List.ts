@@ -49,10 +49,13 @@ export class List<T> extends Array<T> {
      * @returns `true` if element was included; `false` otherwise.
      */
     remove(element: T) {
-        const index = this.indexOf(element);
-        if (index < 0) return false;
+        do {
+            var index = this.indexOf(element);
+            if (index < 0) return false;
 
-        this.splice(index, 1);
+            this.splice(index, 1);
+        } while (index >= 0);
+
         return true;
     }
 

@@ -1,4 +1,4 @@
-import { Client, ClientList, Entity } from "..";
+import { Client, ClientList, Entity, KeyValue } from "..";
 
 export class Flag {
     /**
@@ -18,17 +18,27 @@ export class Flag {
      * Updates the flag score for a given client
      * @returns The new flag score
      */
-    private updateFlagScore(client: Client) {
-        const { entity } = this;
+    public static updateFlagScore(entity: Entity, client: Client) {
         const { schema } = entity;
         let currentScore = 0;
 
-        const numFlags = schema.flags.length;
-        const numLists = Math.pow(2, numFlags);
+        // Get the client lists and names them according to the flag scores they include
 
-        const lists = new Array(numLists).fill(null).map((_, score) => ClientList.id(`${entity.id}/${score}`));
+        const clientLists: KeyValue<ClientList> = {};
 
-        for (let index = 0; index < numFlags; index++) {
+        for (const propertyName in schema.properties) {
+            const propertySchema = schema.properties[propertyName];
+            for (const conditionType of ["input", "output"] as ("input"|"output")[]) {
+                const allowedScores = propertySchema[conditionType];
+                const listName = allowedScores.join("-");
+
+                if (listName) clientLists[listName] ??= ClientList.findOrCreate(`${entity.id}/${listName}`);
+            }
+        }
+
+        // Calculates the flag score for this client
+
+        for (let index = 0; index < schema.flags.length; index++) {
             const flagName = schema.flags[index];
             const flagValue = Math.pow(2, index);
 
@@ -40,18 +50,33 @@ export class Flag {
             }
         }
 
-        for (let score = 0; score < numLists; score++) {
-            const currentList = lists[score];
-            if (score === currentScore) {
-                currentList.add(client);
+        // For each list, adds or removes the client, based on the flag score
+
+        for (const listName in clientLists) {
+            const list = clientLists[listName];
+            const includedScores = listName.split("-").map(string => parseInt(string));
+
+            if (includedScores.includes(currentScore)) {
+                list.add(client);
             } else {
-                currentList.remove(client);
+                list.remove(client);
             }
         }
 
         return currentScore;
     }
 
+    /**
+     * Revokes all entity flags from a given client
+     */
+    public static revokeAllFlags(entity: Entity, client: Client) {
+        const { schema } = entity;
+
+        for (const flagName of schema.flags) {
+            const flag = (entity as any)[flagName] as Flag;
+            flag.revokeFrom(client);
+        }
+    }
 
     /**
      * Assigns this flag to a given client. Returns `true` if the client didn't have this flag already, returns `false` otherwise.
@@ -60,7 +85,7 @@ export class Flag {
         const success = this.clients.add(client);
 
         if (success) {
-            this.updateFlagScore(client);
+            Flag.updateFlagScore(this.entity, client);
             this.onChange(client, true);
         }
 
@@ -74,7 +99,7 @@ export class Flag {
         const success = this.clients.remove(client);
 
         if (success) {
-            this.updateFlagScore(client);
+            Flag.updateFlagScore(this.entity, client);
             this.onChange(client, false);
         }
 

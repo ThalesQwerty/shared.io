@@ -1,4 +1,4 @@
-import { Entity, Server } from "../../lib";
+import { Channel, Entity, Server } from "../../lib";
 
 class TestEntity extends Entity {
     um = 1;
@@ -27,7 +27,7 @@ console.log("Oi!");
 
 const server = new Server();
 
-const entity = new TestEntity(server);
+const entity = new TestEntity(new Channel(server));
 
 console.log("entries", server.state.entries);
 

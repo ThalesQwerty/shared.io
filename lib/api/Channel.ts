@@ -1,4 +1,4 @@
-import { Client, ClientList, HasId, Server, Entity, List } from "../";
+import { Client, ClientList, HasId, Server, Entity, List, Flag } from "../";
 
 export class Channel extends HasId {
     public get type() {
@@ -15,24 +15,16 @@ export class Channel extends HasId {
     }
 
     /**
-     * Creates an entity inside this channel
-     */
-    public createEntity<EntityType extends Entity = Entity>(entityType: new (...args: ConstructorParameters<typeof Entity>) => EntityType, owner?: Client|null): EntityType {
-        const newEntity = new entityType(this.server, owner);
-
-        this.server.state.setList("subscribers", newEntity.id, this.id);
-        this.entities.push(newEntity);
-
-        return newEntity;
-    }
-
-    /**
      * Makes a client join this channel, if they're not already in.
      *
      * Returns `true` if the client successfully joined the channel, returns `false` otherwise.
      */
     public addClient(client: Client) {
-        return this.users.add(client);
+        if (this.users.add(client)) {
+            for (const entity of this.entities) {
+                Flag.updateFlagScore(entity, client);
+            }
+        }
     }
 
     /**
@@ -41,7 +33,11 @@ export class Channel extends HasId {
      * Returns `true` if the client successfully left the channel, returns `false` otherwise.
      */
     public removeClient(client: Client) {
-        return this.users.remove(client);
+        if (this.users.remove(client)) {
+            for (const entity of this.entities) {
+                Flag.revokeAllFlags(entity, client);
+            }
+        }
     }
 }
 

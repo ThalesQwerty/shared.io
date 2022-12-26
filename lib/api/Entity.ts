@@ -84,3 +84,14 @@ export interface Entity {
 }
 
 type Writeable<T> = { -readonly [P in keyof T]: T[P] };
+
+export type EntityMethods<EntityType extends Entity> = {
+    [key in keyof EntityType as EntityType[key] extends ((...args: any[]) => any) ? key extends string ? key : never : never]: any
+};
+
+export type EntityProperties<EntityType extends Entity> = {
+    [key in keyof EntityType as EntityType[key] extends ((...args: any[]) => any) ? never : key extends string ? key : never]: any
+};
+
+export type EntityMethodName<EntityType extends Entity> = keyof EntityMethods<EntityType>;
+export type EntityPropertyName<EntityType extends Entity> = keyof EntityProperties<EntityType>;

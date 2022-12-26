@@ -1,4 +1,4 @@
-import { Client, Entity, Channel, Server, Decorators, Flag, nextTick, KeyValue, ClientList } from "../../lib";
+import { Client, Entity, Channel, Server, Decorators, Flag, nextTick, KeyValue, ClientList, UUID } from "../../lib";
 
 const { input, output, hidden, inputIf, outputIf, hiddenIf, flag } = Decorators("ally", "watched");
 
@@ -36,6 +36,39 @@ class DecoratedEntity extends Entity {
 
     @hiddenIf(f => f.ally || f.watched)
     noWatchedOrAlly = 0;
+
+    @input input = 0;
+
+    @inputIf(f => f.ally)
+    inputAllyOnly = 0;
+
+    @inputIf(f => f.watched)
+    inputWatchedOnly = 0;
+
+    @inputIf(f => f.ally && f.watched)
+    inputWatchedAllyOnly = 0;
+
+    @inputIf(f => f.ally || f.watched)
+    inputWatchedOrAllyOnly = 0;
+
+    @inputIf(f => !f.ally)
+    inputNoAlly = 0;
+
+    @inputIf(f => !f.watched)
+    inputNoWatched = 0;
+
+    @inputIf(f => !(f.ally && f.watched))
+    inputNoWatchedAlly = 0;
+
+    @inputIf(f => !(f.ally || f.watched))
+    inputNoWatchedOrAlly = 0;
+
+    @inputIf(f => true)
+    inputPublic = 0;
+
+    add(a = 0, b = 0) {
+        return a + b;
+    }
 }
 
 class TestChannel extends Channel {}
@@ -130,6 +163,64 @@ describe("Entity", () => {
             expect(clientB.view.state[`${id}.noWatchedOrAlly`]).toBeUndefined();
             expect(clientC.view.state[`${id}.noWatchedOrAlly`]).toBeUndefined();
             expect(clientD.view.state[`${id}.noWatchedOrAlly`]).toBe(0);
+        });
+    });
+
+    describe("Input", () => {
+        it("Applies owner flag correctly", async () => {
+            const clients = [clientA, clientB];
+            clients.forEach(client => channel.addClient(client));
+
+            const entity = new DecoratedEntity(channel, clientA);
+            expect(entity.input).toBe(0);
+
+            clientA.write(entity, { input: 1 });
+            clientB.write(entity, { input: 2 });
+
+            clients.forEach(client => client.sync());
+            expect(entity.input).toBe(1);
+        });
+
+        it("Applies custom flags correctly", async () => {
+            const clients = [clientA, clientB, clientC, clientD];
+            clients.forEach(client => channel.addClient(client));
+
+            const entity = new DecoratedEntity(channel);
+
+            entity.ally.assignTo(clientA);
+            entity.watched.assignTo(clientB);
+            entity.ally.assignTo(clientC);
+            entity.watched.assignTo(clientC);
+
+            await nextTick();
+            clients.forEach(client => client.sync());
+
+            clients.forEach((client, index) => { client.write(entity, { inputPublic: entity.inputPublic + Math.pow(2, index) }); client.sync() });
+            expect(entity.inputPublic).toBe(15);
+
+            clients.forEach((client, index) => { client.write(entity, { inputAllyOnly: entity.inputAllyOnly + Math.pow(2, index) }); client.sync() });
+            expect(entity.inputAllyOnly).toBe(5);
+
+            clients.forEach((client, index) => { client.write(entity, { inputWatchedOnly: entity.inputWatchedOnly + Math.pow(2, index) }); client.sync() });
+            expect(entity.inputWatchedOnly).toBe(6);
+
+            clients.forEach((client, index) => { client.write(entity, { inputWatchedAllyOnly: entity.inputWatchedAllyOnly + Math.pow(2, index) }); client.sync() });
+            expect(entity.inputWatchedAllyOnly).toBe(4);
+
+            clients.forEach((client, index) => { client.write(entity, { inputWatchedOrAllyOnly: entity.inputWatchedOrAllyOnly + Math.pow(2, index) }); client.sync() });
+            expect(entity.inputWatchedOrAllyOnly).toBe(7);
+
+            clients.forEach((client, index) => { client.write(entity, { inputNoAlly: entity.inputNoAlly + Math.pow(2, index) }); client.sync() });
+            expect(entity.inputNoAlly).toBe(10);
+
+            clients.forEach((client, index) => { client.write(entity, { inputNoWatched: entity.inputNoWatched + Math.pow(2, index) }); client.sync() });
+            expect(entity.inputNoWatched).toBe(9);
+
+            clients.forEach((client, index) => { client.write(entity, { inputNoWatchedAlly: entity.inputNoWatchedAlly + Math.pow(2, index) }); client.sync() });
+            expect(entity.inputNoWatchedAlly).toBe(11);
+
+            clients.forEach((client, index) => { client.write(entity, { inputNoWatchedOrAlly: entity.inputNoWatchedOrAlly + Math.pow(2, index) }); client.sync() });
+            expect(entity.inputNoWatchedOrAlly).toBe(8);
         });
     });
 

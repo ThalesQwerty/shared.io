@@ -1,5 +1,5 @@
 import _ from "lodash";
-import { HasId_Mixin, KeyValue, View, CustomEvent, CustomEventEmitter, UUID, Channel, ExecutionQueue } from "..";
+import { HasId_Mixin, KeyValue, View, CustomEvent, CustomEventEmitter, UUID, Channel, ExecutionQueue, Entity, EntityMethodName, EntityMethods } from "..";
 import { Output, Input, Server } from ".";
 import { WebSocket } from "ws";
 
@@ -17,7 +17,7 @@ export class Client extends HasId_Mixin<new () => CustomEventEmitter<ClientEvent
 
     private readonly queues: KeyValue<ExecutionQueue, "input"|"output"> = {
         output: new ExecutionQueue<KeyValue>(output => this.sendView(output)),
-        input: new ExecutionQueue<Input>(input => this.handleInput(input))
+        input: new ExecutionQueue<Input>(input => this.input(input))
     };
 
     get connected() {
@@ -80,7 +80,44 @@ export class Client extends HasId_Mixin<new () => CustomEventEmitter<ClientEvent
         });
     }
 
-    private handleInput(input: Input) {
+    /**
+     * Attempts to write values into an entity's properties
+     */
+    write<EntityType extends Entity>(entity: EntityType, changes: Partial<EntityType>) {
+        const newChanges = Object.keys(changes).reduce((obj, key) => ({
+            ...obj,
+            [`${entity.id}.${key}`]: changes[key as keyof EntityType]
+        }), {}) as KeyValue;
+
+        return this.input({
+            type: "write",
+            id: UUID(),
+            data: {
+                changes: newChanges
+            }
+        });
+    }
+
+    /**
+     * Attempts to call an entity's method on behalf of this client
+     */
+    call<EntityType extends Entity, MethodName extends EntityMethodName<EntityType>>(entity: EntityType, methodName: MethodName, ...parameters: Parameters<EntityMethods<EntityType>[MethodName]>) {
+        return this.input({
+            type: "call",
+            id: UUID(),
+            data: {
+                entityId: entity.id,
+                methodName: methodName as string,
+                parameters
+            }
+        });
+    }
+
+    /**
+     * Executes an input
+     * @param input
+     */
+    private input(input: Input) {
         const { view, server } = this;
 
         switch (input.type) {

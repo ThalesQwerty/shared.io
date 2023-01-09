@@ -24,7 +24,7 @@ export interface CallInput extends SharedIOBaseInput {
     data: {
         entityId: string,
         methodName: string,
-        parameters: any[]
+        parameters: unknown[]
     }
 }
 

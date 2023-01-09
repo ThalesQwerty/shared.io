@@ -96,6 +96,7 @@ describe("View", () => {
             clientA.sync();
 
             const lastMessage = messagesSent.pop();
+
             expect(lastMessage).toBeDefined();
             expect(lastMessage!.id).toBeTruthy();
             expect(lastMessage!.type).toBe("view");

@@ -19,6 +19,23 @@ export interface ViewOutput extends SharedIOBaseOutput {
     }
 }
 
+/**
+ * Broadcasts a method call to other clients
+ */
+export interface CallOutput extends SharedIOBaseOutput {
+    type: "call",
+    data: {
+        inputId: string,
+        entityId: string,
+        methodName: string,
+        parameters: unknown[],
+        returnedValue: unknown
+    }
+}
+
+/**
+ * Sends the return of a function to the client which called it
+ */
 export interface ReturnOutput extends SharedIOBaseOutput {
     type: "return";
     data: {
@@ -29,4 +46,5 @@ export interface ReturnOutput extends SharedIOBaseOutput {
 
 export type Output =
     | ViewOutput
+    | CallOutput
     | ReturnOutput;

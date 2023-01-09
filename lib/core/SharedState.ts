@@ -145,7 +145,7 @@ export class SharedState extends CustomEventEmitter<SharedStateEvents> {
 
         const publishers = this.getList("publishers", key);
 
-        if (client && !publishers?.includes(client)) {
+        if (client && (!publishers?.includes(client) || this.read(key, client) === undefined)) {
             return this.read<T>(key);
         }
 

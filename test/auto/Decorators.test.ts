@@ -66,14 +66,19 @@ class DecoratedEntity extends Entity {
     @inputIf(f => true)
     inputPublic = 0;
 
-    add(a = 0, b = 0) {
-        return a + b;
+    lastAddResult = 0;
+
+    @input notDefined: any;
+
+    @input add(a = 0, b = 0) {
+        console.log("add", a, b);
+        return this.lastAddResult = a + b;
     }
 }
 
-class TestChannel extends Channel {}
+class TestChannel extends Channel { }
 
-describe("Entity", () => {
+describe("Decorators", () => {
     const server: Server = new Server();
     const { state } = server;
     const channel = new TestChannel(server);
@@ -92,6 +97,130 @@ describe("Entity", () => {
 
     afterEach(() => {
         state.clear();
+    });
+
+    describe("Flags", () => {
+        it("Calculates flag score correctly", async () => {
+            const clients = [clientA, clientB, clientC, clientD];
+            clients.forEach(client => channel.addClient(client));
+
+            const entity = new DecoratedEntity(channel, clientA);
+
+            expect(clients.map(client => Flag.updateFlagScore(entity, client))).toEqual([1, 0, 0, 0]);
+
+            entity.ally.assignTo(clientA);
+            entity.watched.assignTo(clientB);
+            entity.ally.assignTo(clientC);
+            entity.watched.assignTo(clientC);
+
+            expect(clients.map(client => Flag.updateFlagScore(entity, client))).toEqual([3, 4, 6, 0]);
+
+            entity.ally.revokeFrom(clientA);
+            entity.watched.revokeFrom(clientC);
+
+            expect(clients.map(client => Flag.updateFlagScore(entity, client))).toEqual([1, 4, 2, 0]);
+        });
+    });
+
+    describe("Lists", () => {
+        it("Generates expected lists", async () => {
+            const clients = [clientA, clientB, clientC, clientD];
+            clients.forEach(client => channel.addClient(client));
+
+            const entity = new DecoratedEntity(channel, clientA);
+            const lists = Entity.getClientLists(entity);
+            const listNames = lists.map(list => list.id);
+            const key = (listName: string) => `${entity.id}/${listName}`;
+
+            expect(listNames).toContain(key("0-1-2-3-4-5-6-7")); // f => true
+            expect(listNames).toContain(key("1-3-5-7")); // f => f.owner
+            expect(listNames).toContain(key("2-3-6-7")); // f => f.ally
+            expect(listNames).toContain(key("4-5-6-7")); // f => f.watched
+            expect(listNames).toContain(key("2-3-4-5-6-7")); // f => f.ally || f.watched
+            expect(listNames).toContain(key("6-7")); // f => f.ally && f.watched
+            expect(listNames).not.toContain(key("0-2-4-6")); // f => !f.owner
+            expect(listNames).toContain(key("0-1-4-5")); // f => !f.ally
+            expect(listNames).toContain(key("0-1-2-3")); // f => !f.watched
+            expect(listNames).toContain(key("0-1")); // f => !(f.ally || f.watched)
+            expect(listNames).toContain(key("0-1-2-3-4-5")); // f => !(f.ally && f.watched)
+        });
+
+        it("Allocates clients into lists correctly", async () => {
+            const clients = [clientA, clientB, clientC, clientD];
+            clients.forEach(client => channel.addClient(client));
+
+            const entity = new DecoratedEntity(channel, clientA);
+            const list = (listName: string) => ClientList.all[`${entity.id}/${listName}`] ?? [];
+
+            entity.ally.assignTo(clientA);
+            entity.watched.assignTo(clientB);
+            entity.ally.assignTo(clientC);
+            entity.watched.assignTo(clientC);
+
+            clients.forEach(client => client.sync());
+
+            let currentList: ClientList;
+
+            currentList = list("0-1-2-3-4-5-6-7"); // f => true
+            expect(currentList.includes(clientA)).toBe(true);
+            expect(currentList.includes(clientB)).toBe(true);
+            expect(currentList.includes(clientC)).toBe(true);
+            expect(currentList.includes(clientD)).toBe(true);
+
+            currentList = list("1-3-5-7"); // f => f.owner
+            expect(currentList.includes(clientA)).toBe(true);
+            expect(currentList.includes(clientB)).toBe(false);
+            expect(currentList.includes(clientC)).toBe(false);
+            expect(currentList.includes(clientD)).toBe(false);
+
+            currentList = list("2-3-6-7"); // f => f.ally
+            expect(currentList.includes(clientA)).toBe(true);
+            expect(currentList.includes(clientB)).toBe(false);
+            expect(currentList.includes(clientC)).toBe(true);
+            expect(currentList.includes(clientD)).toBe(false);
+
+            currentList = list("4-5-6-7"); // f => f.watched
+            expect(currentList.includes(clientA)).toBe(false);
+            expect(currentList.includes(clientB)).toBe(true);
+            expect(currentList.includes(clientC)).toBe(true);
+            expect(currentList.includes(clientD)).toBe(false);
+
+            currentList = list("2-3-4-5-6-7"); // f => f.ally || f.watched
+            expect(currentList.includes(clientA)).toBe(true);
+            expect(currentList.includes(clientB)).toBe(true);
+            expect(currentList.includes(clientC)).toBe(true);
+            expect(currentList.includes(clientD)).toBe(false);
+
+            currentList = list("6-7"); // f => f.ally && f.watched
+            expect(currentList.includes(clientA)).toBe(false);
+            expect(currentList.includes(clientB)).toBe(false);
+            expect(currentList.includes(clientC)).toBe(true);
+            expect(currentList.includes(clientD)).toBe(false);
+
+            currentList = list("0-1-4-5"); // f => !f.ally
+            expect(currentList.includes(clientA)).toBe(false);
+            expect(currentList.includes(clientB)).toBe(true);
+            expect(currentList.includes(clientC)).toBe(false);
+            expect(currentList.includes(clientD)).toBe(true);
+
+            currentList = list("0-1-2-3"); // f => !f.watched
+            expect(currentList.includes(clientA)).toBe(true);
+            expect(currentList.includes(clientB)).toBe(false);
+            expect(currentList.includes(clientC)).toBe(false);
+            expect(currentList.includes(clientD)).toBe(true);
+
+            currentList = list("0-1"); // f => !(f.ally || f.watched)
+            expect(currentList.includes(clientA)).toBe(false);
+            expect(currentList.includes(clientB)).toBe(false);
+            expect(currentList.includes(clientC)).toBe(false);
+            expect(currentList.includes(clientD)).toBe(true);
+
+            currentList = list("0-1-2-3-4-5"); // f => !(f.ally && f.watched)
+            expect(currentList.includes(clientA)).toBe(true);
+            expect(currentList.includes(clientB)).toBe(true);
+            expect(currentList.includes(clientC)).toBe(false);
+            expect(currentList.includes(clientD)).toBe(true);
+        });
     });
 
     describe("Output", () => {
@@ -268,6 +397,24 @@ describe("Entity", () => {
                 [clientB.id]: true,
                 [clientC.id]: true,
             });
+        });
+    });
+
+    describe.only("Methods", () => {
+        it("Applies input rules correctly", async () => {
+            const clients = [clientA, clientB];
+            clients.forEach(client => channel.addClient(client));
+
+            const entity = new DecoratedEntity(channel, clientA);
+            expect(entity.lastAddResult).toBe(0);
+
+            clientA.call(entity, "add", 2, 5);
+            clientA.sync();
+            expect(entity.lastAddResult).toBe(7);
+
+            clientB.call(entity, "add", 2, 2);
+            clientB.sync();
+            expect(entity.lastAddResult).toBe(7);
         });
     });
 });

@@ -12,11 +12,12 @@ class TestEntity extends Entity {
     @outputIf(f => true)
     @output dois = 2;
 
-    @inputIf(f => true)
+    @input
     method(client?: Client) {
         console.log(client ? `Method called by client ${client.id}` : "Method called by server");
     }
 
+    @input
     arrow = () => {
         console.log("arrow");
     }
@@ -30,6 +31,8 @@ const server = new Server({
 
 const testChannel = new TestChannel(server);
 const testEntity = new TestEntity(testChannel);
+
+console.dir(testEntity.schema, { depth: null });
 
 server.on("connection", ({ client }) => {
     testChannel.addClient(client);

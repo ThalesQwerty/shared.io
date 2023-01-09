@@ -1,7 +1,10 @@
 import { IdList, KeyValue, HasId, UUID, Client, View, List } from "..";
 
 export class ClientList extends IdList<Client> {
-    protected static readonly all: KeyValue<ClientList> = {};
+    /**
+     * Lists all client lists
+     */
+    static readonly all: KeyValue<ClientList> = {};
 
     public readonly watchedKeys = new List<string>();
 
@@ -13,10 +16,10 @@ export class ClientList extends IdList<Client> {
     }
 
     /**
-     * Sends a message to all clients on this list
+     * Sends a message to all clients on this list on the next synchronization
      */
-    public send(...params: Parameters<Client["send"]>) {
-        this.forEach(client => client.send(...params));
+    public output(...params: Parameters<Client["output"]>) {
+        return Promise.all(this.map(client => client.output(...params)));
     }
 
     private forcefullyUpdateKeys(client: Client) {

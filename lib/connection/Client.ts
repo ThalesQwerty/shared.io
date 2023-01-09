@@ -9,15 +9,23 @@ type ClientEvents = {
 
 export type ClientEvent<name extends keyof ClientEvents> = CustomEvent<ClientEvents, name>;
 
+type PromisedItem<T extends KeyValue> = T & { resolve?: Function }
+
 /**
  * Represents a websocket client connected to a SharedIO server
  */
 export class Client extends HasId_Mixin<new () => CustomEventEmitter<ClientEvents>>(CustomEventEmitter) {
     readonly view: View;
 
-    private readonly queues: KeyValue<ExecutionQueue, "input"|"output"> = {
-        output: new ExecutionQueue<KeyValue>(output => this.sendView(output)),
-        input: new ExecutionQueue<Input>(input => this.input(input))
+    private readonly queues: KeyValue<ExecutionQueue, "input" | "output"> = {
+        output: new ExecutionQueue<PromisedItem<{ output: Output }>>(({ output, resolve }) => {
+            this.send(output);
+            resolve?.();
+        }),
+        input: new ExecutionQueue<PromisedItem<{ input: Input }>>(({ input, resolve }) => {
+            this.receive(input);
+            resolve?.();
+        })
     };
 
     get connected() {
@@ -25,31 +33,79 @@ export class Client extends HasId_Mixin<new () => CustomEventEmitter<ClientEvent
     }
 
     /**
-     * Sends an arbitrary message via websocket to this client
+     * Emits an output via websocket to this client on the next synchronization
      */
-    sendRaw(message: KeyValue) {
-        if (this.connected) {
-            this.ws?.send(JSON.stringify(message));
-        }
+    output(output: Output | Omit<Output, "id">) {
+        return new Promise<void>(resolve => {
+            this.queues.output.add({
+                output: {
+                    id: UUID(),
+                    ...output
+                },
+                resolve
+            })
+        });
     }
 
     /**
-     * Emits an output via websocket to this client
+     * Simulates an input received from this client
      */
-    send(output: Output|Omit<Output, "id">) {
-        const outputWithId = {
-            id: UUID(),
-            ...output
-        } as Output;
+    input(input: Input | Omit<Input, "id">) {
+        return new Promise<void>(resolve => {
+            this.queues.input.add({
+                input: {
+                    id: UUID(),
+                    ...input
+                } as Input,
+                resolve
+            });
+        });
+    }
 
-        this.sendRaw(outputWithId);
+    /**
+     * Syncrhonizes the current server's state and this client's state
+     */
+    sync() {
+        this.queues.input.execute();
+        this.queues.output.execute();
+    }
+
+    /**
+     * Attempts to write values into an entity's properties
+     */
+    write<EntityType extends Entity>(entity: EntityType, changes: Partial<EntityType>) {
+        const newChanges = (Object.keys(changes) as (keyof EntityType)[]).reduce((obj, key) => ({
+            ...obj,
+            [Entity.key(entity, key)]: changes[key]
+        }), {} as Partial<EntityType>);
+
+        return this.input({
+            type: "write",
+            data: {
+                changes: newChanges
+            }
+        });
+    }
+
+    /**
+     * Attempts to call an entity's method on behalf of this client
+     */
+    call<EntityType extends Entity, MethodName extends EntityMethodName<EntityType>>(entity: EntityType, methodName: MethodName, ...parameters: Parameters<EntityMethods<EntityType>[MethodName]>) {
+        return this.input({
+            type: "call",
+            data: {
+                entityId: entity.id,
+                methodName: methodName as string,
+                parameters
+            }
+        });
     }
 
     /**
      * Attempts to read the value of a given key on the server state and updates the view
      * @param key
      */
-    read<T = any>(key: string): T|undefined {
+    read<T = any>(key: string): T | undefined {
         const value = this.server.state.read(key, this);
         this.view.update(key, value);
         return value;
@@ -64,60 +120,31 @@ export class Client extends HasId_Mixin<new () => CustomEventEmitter<ClientEvent
     }
 
     /**
-     * Syncrhonizes the current server's state and this client's state
+     * Sends an arbitrary message via websocket to this client
      */
-    sync() {
-        this.queues.input.execute();
-        this.queues.output.execute();
-    }
-
-    private sendView(changes: KeyValue) {
-        return this.send({
-            type: "view",
-            data: {
-                changes
-            }
-        });
+    sendRaw(message: KeyValue) {
+        if (this.connected) {
+            this.ws?.send(JSON.stringify(message));
+        }
     }
 
     /**
-     * Attempts to write values into an entity's properties
+     * Emits an output via websocket to this client
      */
-    write<EntityType extends Entity>(entity: EntityType, changes: Partial<EntityType>) {
-        const newChanges = Object.keys(changes).reduce((obj, key) => ({
-            ...obj,
-            [`${entity.id}.${key}`]: changes[key as keyof EntityType]
-        }), {}) as KeyValue;
-
-        return this.input({
-            type: "write",
+    send(output: Output | Omit<Output, "id">) {
+        const outputWithId = {
             id: UUID(),
-            data: {
-                changes: newChanges
-            }
-        });
+            ...output
+        } as Output;
+
+        this.sendRaw(outputWithId);
     }
 
     /**
-     * Attempts to call an entity's method on behalf of this client
-     */
-    call<EntityType extends Entity, MethodName extends EntityMethodName<EntityType>>(entity: EntityType, methodName: MethodName, ...parameters: Parameters<EntityMethods<EntityType>[MethodName]>) {
-        return this.input({
-            type: "call",
-            id: UUID(),
-            data: {
-                entityId: entity.id,
-                methodName: methodName as string,
-                parameters
-            }
-        });
-    }
-
-    /**
-     * Executes an input
+     * Executes an input received from the client
      * @param input
      */
-    private input(input: Input) {
+    private receive(input: Input) {
         const { view, server } = this;
 
         switch (input.type) {
@@ -133,17 +160,43 @@ export class Client extends HasId_Mixin<new () => CustomEventEmitter<ClientEvent
                 const entity = server.entities[input.data.entityId];
 
                 if (entity) {
-                    const method = (entity as any)[input.data.methodName];
+                    const method = (entity as any)[input.data.methodName] as Function;
 
                     if (typeof method === "function") {
-                        const returnedValue = method(...input.data.parameters, this);
+                        const publishers = server.state.getList("publishers", Entity.key<any>(entity, input.data.methodName));
+                        const authorized = !!publishers?.includes(this);
+                        console.log("authorized", publishers?.length);
 
-                        if (returnedValue !== undefined && typeof returnedValue !== "function") {
-                            this.send({
+                        if (authorized) {
+                            const subscribers = server.state.getList("subscribers", Entity.key<any>(entity, input.data.methodName));
+
+                            const rawReturnedValue = Entity.call<any, any>(entity, input.data.methodName, ...input.data.parameters, this);
+                            const returnedValue = typeof rawReturnedValue !== "function" ? rawReturnedValue : undefined
+
+                            this.output({
                                 type: "return",
                                 data: {
                                     inputId: input.id,
                                     returnedValue
+                                }
+                            });
+
+                            subscribers?.output({
+                                type: "call",
+                                data: {
+                                    inputId: input.id,
+                                    entityId: entity.id,
+                                    methodName: input.data.methodName,
+                                    parameters: input.data.parameters,
+                                    returnedValue
+                                }
+                            });
+                        } else {
+                            this.output({
+                                type: "return",
+                                data: {
+                                    inputId: input.id,
+                                    returnedValue: undefined
                                 }
                             });
                         }
@@ -157,8 +210,17 @@ export class Client extends HasId_Mixin<new () => CustomEventEmitter<ClientEvent
         super();
         this.view = new View();
 
-        this.view.on("update", ({ changes }) => this.queues.output.add(changes));
-        this.view.on("reload", ({ view }) => this.queues.output.add(view));
+        const updateView = (view: KeyValue) => {
+            return this.output({
+                type: "view",
+                data: {
+                    changes: view
+                }
+            })
+        }
+
+        this.view.on("update", ({ changes }) => updateView(changes));
+        this.view.on("reload", ({ view }) => updateView(view));
 
         if (ws) {
             ws.on("close", () => {
@@ -168,8 +230,8 @@ export class Client extends HasId_Mixin<new () => CustomEventEmitter<ClientEvent
             ws.on("message", (message) => {
                 try {
                     const input = JSON.parse(message.toString()) as Input;
-                    this.queues.input.add(input);
-                } catch {}
+                    this.queues.input.add({ input });
+                } catch { }
             });
         }
     }

@@ -25,7 +25,7 @@ export interface EntityPropertySchema {
      *
      * If this is not a method, the value will be `null`
      */
-    parameters: null|KeyValue<PropertyType>
+    parameters: null|KeyValue<PropertyType>;
 
     /**
      * Which flag scores allows user input?

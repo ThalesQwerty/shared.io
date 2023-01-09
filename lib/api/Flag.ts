@@ -57,8 +57,10 @@ export class Flag {
             const includedScores = listName.split("-").map(string => parseInt(string));
 
             if (includedScores.includes(currentScore)) {
+                // console.log("ADD", client.id, listName);
                 list.add(client);
             } else {
+                // console.log("REMOVE", client.id, listName);
                 list.remove(client);
             }
         }

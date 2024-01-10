@@ -19,7 +19,6 @@ export class Server extends EventEmitter {
     }
 
     public findOrCreateChannel(id: string) {
-        console.log("find", id);
         return this.channels.find(channel => channel.id === id) ?? new Channel(this, id);
     }
 

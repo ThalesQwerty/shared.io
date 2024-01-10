@@ -18,12 +18,19 @@ export class Channel extends EventEmitter {
             if (client !== origin) {
                 client.send(message);
             }
-        })
+        });
     }
 
     addClient(client: Client) {
         if (!this.clients.includes(client)) {
             this.clients.push(client);
+
+            client.send({
+                action: "join",
+                channelId: this.id
+            });
+
+            this.emit("join", { client });
             return true;
         }      
 
@@ -34,9 +41,22 @@ export class Channel extends EventEmitter {
         const clientIndex = this.clients.findIndex(ws => ws === client);
         if (clientIndex >= 0) {
             this.clients.splice(clientIndex, 1);
+
+            client.send({
+                action: "leave",
+                channelId: this.id
+            });
+
+            this.emit("leave", { client });
             return true;
         }
 
         return false;
+    }
+
+    delete() {
+        for (const client of this.clients) {
+            this.removeClient(client);
+        }
     }
 }

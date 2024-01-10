@@ -1,5 +1,5 @@
 export interface BaseInput {
-    action: "join"|"leave"|"update"|"create";
+    action: string;
     channelId: string;
     inputId: string;
     params?: Record<string, any>
@@ -7,21 +7,13 @@ export interface BaseInput {
 
 export interface JoinInput extends BaseInput {
     action: "join",
-    params: never
+    params?: never
 }
 
 export interface LeaveInput extends BaseInput {
     action: "leave",
-    params: never
+    params?: never
 }
-
-export interface UpdateInput extends BaseInput {
-    action: "update",
-    params: {
-        entityId: string,
-        values: Record<string, any>
-    }
-};
 
 export interface CreateInput extends BaseInput {
     action: "create",
@@ -31,8 +23,34 @@ export interface CreateInput extends BaseInput {
     }
 };
 
+export interface ReadInput extends BaseInput {
+    action: "read",
+    params: {
+        entityId: string,
+        values: Record<string, any>
+    }
+};
+
+export interface UpdateInput extends BaseInput {
+    action: "update",
+    params: {
+        entityId: string,
+        values: Record<string, any>
+    }
+};
+
+
+export interface DeleteInput extends BaseInput {
+    action: "delete",
+    params: {
+        entityId: string
+    }
+};
+
 export type Input = 
     | JoinInput
     | LeaveInput
+    | CreateInput
+    | ReadInput
     | UpdateInput
-    | CreateInput;
+    | DeleteInput;

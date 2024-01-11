@@ -51,9 +51,9 @@ export class Server extends EventEmitter {
             ws.on("message", (data) => {
                 try {
                     const input = JSON.parse(data.toString()) as Input;
-                    const channel = this.findOrCreateChannel(input.channelId);
-
+                    
                     if (input.action === "join") {
+                        const channel = this.findOrCreateChannel(input.channelId);
                         client.join(channel);
                     } else {
                         if (!client.receive(input)) {

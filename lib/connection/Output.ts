@@ -7,12 +7,12 @@ export interface BaseOutput {
 
 export interface JoinOutput extends BaseOutput {
     action: "join",
-    params?: never
+    params?: undefined
 }
 
 export interface LeaveOutput extends BaseOutput {
     action: "leave",
-    params?: never
+    params?: undefined
 }
 
 export interface CreateOutput extends BaseOutput {

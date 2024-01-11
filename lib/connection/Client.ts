@@ -11,20 +11,21 @@ export class Client {
 
     constructor(private readonly ws: WebSocket) {}
 
-    send(message: Output) {
-        this.ws.send(JSON.stringify(message));
+    send(output: Output) {
+        this.ws.send(JSON.stringify(output));
     }
 
-    receive(message: Input) {
-        const channel = this.channels.find(channel => channel.id === message.channelId);
+    receive(input: Input) {
+        const channel = this.channels.find(channel => channel.id === input.channelId);
 
-        switch (message.action) {
+        switch (input.action) {
             case "leave": {
                 channel?.removeClient(this);
                 break;
             }
+
             case "update": {
-                const output: Output = {...message};
+                const output: Output = {...input};
                 const publicId = this.entityIds[output.params.entityId];
 
                 if (!publicId) break;
@@ -35,18 +36,28 @@ export class Client {
                 channel?.broadcast(output, this);
                 break;
             }
+            
             case "create": {
-                const output: Output = {...message};
-                const publicId = this.entityIds[output.params.entityId];
+                const output: Output = {...input};
 
-                if (publicId) break;
+                if (this.entityIds[output.params.entityId]) break;
+                const publicId = this.entityIds[output.params.entityId] = UUID();
 
-                output.params.entityId = this.entityIds[output.params.entityId] = UUID();
                 delete (output as any)["inputId"];
 
-                channel?.broadcast(output, this);
+                channel?.broadcast({
+                    ...output,
+                    params: {
+                        entityId: publicId,
+                        values: output.params.values
+                    }
+                }, this);
+
+                this.send(output);
+
                 break;
             }
+            
             default:
                 return false;
         }

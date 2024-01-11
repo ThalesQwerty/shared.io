@@ -1,7 +1,8 @@
-import { WebSocketServer, WebSocket } from "ws";
+import { WebSocketServer } from "ws";
 import { EventEmitter } from "node:events";
+
 import { Input } from "./Input";
-import { Channel } from "./Channel";
+import { Channel } from "../models/Channel";
 import { Client } from "./Client";
 
 export interface ServerConfig {

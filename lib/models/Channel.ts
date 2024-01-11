@@ -1,8 +1,9 @@
 import { EventEmitter } from "events";
 import { v4 as UUID } from "uuid";
-import { Server } from "./Server";
-import { Client } from "./Client";
-import { Output } from "./Output";
+
+import { Server } from "../connection/Server";
+import { Client } from "../connection/Client";
+import { Output } from "../connection/Output";
 
 export class Channel extends EventEmitter {
     public readonly clients: Client[] = [];
@@ -16,7 +17,10 @@ export class Channel extends EventEmitter {
     broadcast(message: Output, origin?: Client) {
         this.clients.forEach(client => {
             if (client !== origin) {
-                client.send(message);
+                client.send({
+                    ...message,
+                    channelId: this.id
+                });
             }
         });
     }

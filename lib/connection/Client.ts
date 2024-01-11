@@ -1,13 +1,14 @@
 import { WebSocket } from "ws";
-import { v4 as UUID } from "uuid";
 
-import { Channel } from "./Channel";
-import { Output } from "./Output";
+import { Channel } from "../models/Channel";
+import { CreateOutput, Output, UpdateOutput } from "./Output";
 import { Input } from "./Input";
+import { Entity } from "../models/Entity";
+import { Server } from "./Server";
 
 export class Client {
     channels: Channel[] = [];
-    entityIds: Record<string, string> = {};
+    entities: Record<string, Entity> = {};
 
     constructor(private readonly ws: WebSocket) {}
 
@@ -17,43 +18,56 @@ export class Client {
 
     receive(input: Input) {
         const channel = this.channels.find(channel => channel.id === input.channelId);
+        if (!channel) return;
 
         switch (input.action) {
             case "leave": {
-                channel?.removeClient(this);
+                channel.removeClient(this);
                 break;
             }
 
             case "update": {
-                const output: Output = {...input};
-                const publicId = this.entityIds[output.params.entityId];
+                const entity = this.entities[input.params.entityId];
+                if (!entity) break;
 
-                if (!publicId) break;
+                const output: UpdateOutput = {
+                    action: "update",
+                    channelId: channel.id,
+                    params: {
+                        entityId: entity.id,
+                        values: input.params.values
+                    }
+                };
 
-                output.params.entityId = publicId;
-                delete (output as any)["inputId"];
-
-                channel?.broadcast(output, this);
+                channel.broadcast(output, this);
                 break;
             }
             
             case "create": {
-                const output: Output = {...input};
+                if (this.entities[input.params.entityId]) break;
 
-                if (this.entityIds[output.params.entityId]) break;
-                const publicId = this.entityIds[output.params.entityId] = UUID();
+                const entity = new Entity(channel, this, input.params.entityId);
 
-                delete (output as any)["inputId"];
-
-                channel?.broadcast({
-                    ...output,
+                const output: CreateOutput = {
+                    action: "create",
+                    channelId: channel.id,
                     params: {
-                        entityId: publicId,
-                        values: output.params.values
+                        entityId: entity.id,
+                        values: input.params.values
                     }
-                }, this);
+                };
 
-                this.send(output);
+                const confirmationResponse: CreateOutput = {
+                    action: "create",
+                    channelId: channel.id,
+                    params: {
+                        entityId: entity.key,
+                        values: input.params.values
+                    }
+                };
+
+                channel.broadcast(output, this);
+                this.send(confirmationResponse);
 
                 break;
             }
@@ -86,9 +100,8 @@ export class Client {
         for (const channel of this.channels) {
             channel.removeClient(this);
         }
-
         this.channels.splice(0, this.channels.length);
 
-        this.ws.close();
+        if (this.ws.readyState !== this.ws.CLOSED) this.ws.close();
     }
 }

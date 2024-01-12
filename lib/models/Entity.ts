@@ -43,7 +43,8 @@ export class Entity<T extends Record<string, any> = Record<string, any>> extends
                 values: this.state
             }
         };
-
+        
+        this.channel.entities.push(this);
         this.channel.broadcast(output, this.owner);
         this.channel.emit("createEntity", { entity: this });
     }
@@ -81,8 +82,13 @@ export class Entity<T extends Record<string, any> = Record<string, any>> extends
                 entityId: this.key
             }
         });
+
+        delete this.owner?.entities[this.key];
         
         this.emit("delete");
         this.channel.emit("deleteEntity", { entity: this });
+
+        const channelIndex = this.channel.entities.indexOf(this);
+        if (channelIndex >= 0) this.channel.entities.splice(channelIndex, 1);
     }
 }

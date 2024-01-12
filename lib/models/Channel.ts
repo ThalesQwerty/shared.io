@@ -4,9 +4,11 @@ import { v4 as UUID } from "uuid";
 import { Server } from "../connection/Server";
 import { Client } from "../connection/Client";
 import { Output } from "../connection/Output";
+import { Entity } from "./Entity";
 
 export class Channel extends EventEmitter {
     public readonly clients: Client[] = [];
+    public readonly entities: Entity[] = [];
 
     constructor(public readonly server: Server, public readonly id: string = UUID()) {
         super();

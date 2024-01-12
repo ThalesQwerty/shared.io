@@ -3,8 +3,9 @@ import { EventEmitter } from "node:events";
 
 import { Client } from "../connection/Client";
 import { Channel } from "./Channel";
+import { CreateOutput } from "../connection/Output";
 
-export class Entity extends EventEmitter {
+export class Entity<T extends Record<string, any> = Record<string, any>> extends EventEmitter {
     public readonly id = UUID();
 
     public get active() {
@@ -12,14 +13,54 @@ export class Entity extends EventEmitter {
     }
     private _active = true;
 
-    constructor(public readonly channel: Channel, public readonly owner?: Client, public readonly key = UUID()) {
+    public state: Partial<T>;
+
+    constructor(public readonly channel: Channel, initialState: Partial<T> = {}, public readonly owner?: Client, public readonly key = UUID()) {
         super();
 
+        this.state = {...initialState};
+
         if (owner) {
-            owner.entities[this.key] = this;
+            owner.entities[key] = this;
+
+            const confirmationResponse: CreateOutput = {
+                action: "create",
+                channelId: channel.id,
+                params: {
+                    entityId: key,
+                    values: this.state
+                }
+            };
+            
+            owner.send(confirmationResponse);
         }
-        
+
+        const output: CreateOutput = {
+            action: "create",
+            channelId: channel.id,
+            params: {
+                entityId: this.id,
+                values: this.state
+            }
+        };
+
+        this.channel.broadcast(output, this.owner);
         this.channel.emit("createEntity", { entity: this });
+    }
+
+    update(values: Partial<T>) {
+        for (const key in values) {
+            this.state[key] = values[key];
+        }
+
+        this.channel.broadcast({
+            action: "update",
+            channelId: this.channel.id,
+            params: {
+                entityId: this.id,
+                values
+            }
+        }, this.owner);
     }
 
     delete() {

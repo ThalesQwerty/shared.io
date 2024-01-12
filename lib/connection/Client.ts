@@ -1,14 +1,13 @@
 import { WebSocket } from "ws";
 
 import { Channel } from "../models/Channel";
-import { CreateOutput, Output, UpdateOutput } from "./Output";
+import { Output } from "./Output";
 import { Input } from "./Input";
 import { Entity } from "../models/Entity";
-import { Server } from "./Server";
 
 export class Client {
     channels: Channel[] = [];
-    entities: Record<string, Entity> = {};
+    entities: Partial<Record<string, Entity>> = {};
 
     constructor(private readonly ws: WebSocket) {}
 
@@ -28,46 +27,15 @@ export class Client {
 
             case "update": {
                 const entity = this.entities[input.params.entityId];
-                if (!entity) break;
+                entity?.update(input.params.values);
 
-                const output: UpdateOutput = {
-                    action: "update",
-                    channelId: channel.id,
-                    params: {
-                        entityId: entity.id,
-                        values: input.params.values
-                    }
-                };
-
-                channel.broadcast(output, this);
                 break;
             }
             
             case "create": {
-                if (this.entities[input.params.entityId]) break;
-
-                const entity = new Entity(channel, this, input.params.entityId);
-
-                const output: CreateOutput = {
-                    action: "create",
-                    channelId: channel.id,
-                    params: {
-                        entityId: entity.id,
-                        values: input.params.values
-                    }
-                };
-
-                const confirmationResponse: CreateOutput = {
-                    action: "create",
-                    channelId: channel.id,
-                    params: {
-                        entityId: entity.key,
-                        values: input.params.values
-                    }
-                };
-
-                channel.broadcast(output, this);
-                this.send(confirmationResponse);
+                if (!this.entities[input.params.entityId]) {
+                    new Entity(channel, input.params.values, this, input.params.entityId);
+                }
 
                 break;
             }

@@ -49,9 +49,22 @@ export class Client {
 
     join(channel: Channel) {
         const success = channel.addClient(this);
-        if (success) this.channels.push(channel);
+        if (!success) return false;
 
-        return success;
+        this.channels.push(channel);
+        
+        for (const entity of channel.entities) {
+            this.send({
+                action: "create",
+                channelId: channel.id,
+                params: {
+                    entityId: entity.id,
+                    values: entity.state
+                }
+            });
+        }
+
+        return true;
     }
 
     leave(channel: Channel) {

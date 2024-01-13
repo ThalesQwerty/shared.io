@@ -1,42 +1,93 @@
-import { WebSocket } from "ws";
+import { EventEmitter, WebSocket } from "ws";
 
 import { Channel } from "../models/Channel";
 import { Output } from "./Output";
 import { Input } from "./Input";
 import { Entity } from "../models/Entity";
+import { Server } from "./Server";
 
-export class Client {
+export class Client extends EventEmitter {
+    /**
+     * List of channels this client is currently in
+     */
     channels: Channel[] = [];
-    entities: Partial<Record<string, Entity>> = {};
 
-    constructor(private readonly ws: WebSocket) {}
+    /**
+     * List of entities owned by this client
+     */
+    entities: Entity[] = [];
+
+    constructor(public readonly server: Server, private readonly ws: WebSocket) {
+        super();
+
+        ws.on("close", () => {
+            for (const channel of this.channels) {
+                channel.removeClient(this);
+            }
+            this.channels.splice(0, this.channels.length);
+    
+            server.emit("disconnect", { client: this });
+            this.emit("disconnect");
+    
+            const index = server.clients.indexOf(this);
+            if (index >= 0) server.clients.splice(index, 1);
+        });
+
+        ws.on("message", (data) => {
+            try {
+                const input = JSON.parse(data.toString()) as Input;
+
+                server.emit("input", { input, client: this });
+                this.emit("input", { input });
+
+                const isInputValid = this.receive(input);
+
+                if (!isInputValid) {
+                    server.emit("message", { message: input, client: this });
+                    this.emit("message", { message: input });
+                }
+            } catch (error) {
+                console.error(error);
+            }
+        });
+
+        server.emit("connection", { client: this});
+        server.clients.push(this);
+    }
 
     send(output: Output) {
         this.ws.send(JSON.stringify(output));
     }
 
-    receive(input: Input) {
-        const channel = this.channels.find(channel => channel.id === input.channelId);
-        if (!channel) return;
+    receive(input: Input): boolean {
+        if (input.action === "join") {
+            const channel = this.server.findOrCreateChannel(input.channelId);
+            if (channel) this.joinChannel(channel);
+            return true;
+        }
+
+        const channel = this.findJoinedChannelById(input.channelId);
+        if (!channel || !this.isInChannel(channel)) return true;
+
+        const entity = input.params?.entityId ? this.findOwnedEntityByKey(input.params.entityId) : undefined;
 
         switch (input.action) {
             case "leave": {
-                channel.removeClient(this);
+                this.leaveChannel(channel);
                 break;
             }
 
             case "update": {
-                const entity = this.entities[input.params.entityId];
-                entity?.update(input.params.values);
-
+                if (entity) {
+                    this.updateEntity(entity, input.params.values);
+                }
                 break;
             }
             
             case "create": {
-                if (!this.entities[input.params.entityId]) {
-                    new Entity(channel, input.params.values, this, input.params.entityId);
+                if (!entity) {
+                    this.createEntity(channel, input.params.values, input.params.entityId);
                 }
-
                 break;
             }
             
@@ -47,27 +98,36 @@ export class Client {
         return true;
     }   
 
-    join(channel: Channel) {
+    findJoinedChannelById(channelId: string) {
+        return this.channels.find(channel => channel.id === channelId);
+    }
+
+    findOwnedEntityByKey(entityKey: string) {
+        return this.entities.find(entity => entity.key === entityKey);
+    }
+
+    isInChannel(channel: Channel) {
+        return !!this.channels.includes(channel);
+    }
+
+    ownsEntity(entity: Entity) {
+        return entity.owner === this;
+    }
+
+    joinChannel(channel: Channel) {
         const success = channel.addClient(this);
         if (!success) return false;
 
         this.channels.push(channel);
         
         for (const entity of channel.entities) {
-            this.send({
-                action: "create",
-                channelId: channel.id,
-                params: {
-                    entityId: entity.id,
-                    values: entity.state
-                }
-            });
+            this.send(Entity.generateCreateOutput(entity, this));
         }
 
         return true;
     }
 
-    leave(channel: Channel) {
+    leaveChannel(channel: Channel) {
         const success = channel.removeClient(this);
         if (success) {
             const channelIndex = this.channels.indexOf(channel);
@@ -76,13 +136,20 @@ export class Client {
 
         return success;
     }
+
+    createEntity<T extends Record<string, any>>(channel: Channel, values: Partial<T>, key?: string) {
+        return new Entity<T>(channel, values, this, key);
+    }
+
+    deleteEntity(entity: Entity) {
+        return entity.delete();
+    }
+
+    updateEntity<T extends Record<string, any>>(entity: Entity, values: Partial<T>) {
+        return entity.update(values);
+    }
     
     disconnect() {
-        for (const channel of this.channels) {
-            channel.removeClient(this);
-        }
-        this.channels.splice(0, this.channels.length);
-
         if (this.ws.readyState !== this.ws.CLOSED) this.ws.close();
     }
 }

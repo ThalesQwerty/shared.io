@@ -19,10 +19,6 @@ export class Server extends EventEmitter {
         super();
     }
 
-    public findOrCreateChannel(id: string) {
-        return this.channels.find(channel => channel.id === id) ?? new Channel(this, id);
-    }
-
     /**
      * Starts the server
      */
@@ -34,39 +30,7 @@ export class Server extends EventEmitter {
         console.log(`SharedIO server listening on port ${this.config.port}`);
 
         this.wss.on("connection", ws => {
-            const client = new Client(ws);
-
-            this.clients.push(client);
-
-            this.emit("connect", { client });
-
-            ws.on("close", () => {
-                this.emit("disconnect", { client });
-
-                const index = this.clients.indexOf(client);
-                if (index >= 0) this.clients.splice(index, 1);
-
-                client.disconnect();
-            });
-
-            ws.on("message", (data) => {
-                try {
-                    const input = JSON.parse(data.toString()) as Input;
-                    
-                    if (input.action === "join") {
-                        const channel = this.findOrCreateChannel(input.channelId);
-                        client.join(channel);
-                    } else {
-                        if (!client.receive(input)) {
-                            this.emit("message", input);
-                        }
-                    }
-
-                    this.emit("input", input);
-                } catch (error) {
-                    console.error(error);
-                }
-            });
+            new Client(this, ws);
         });
 
         this.wss.on("close", () => {
@@ -86,5 +50,14 @@ export class Server extends EventEmitter {
         this.emit("stop", {});
 
         return this;
+    }
+
+    
+    public findOrCreateChannel(id: string) {
+        return this.channels.find(channel => channel.id === id) ?? this.createChannel(id);
+    }
+
+    public createChannel(id: string) {
+        return new Channel(this, id);
     }
 }

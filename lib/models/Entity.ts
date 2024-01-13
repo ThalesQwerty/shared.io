@@ -3,9 +3,46 @@ import { EventEmitter } from "node:events";
 
 import { Client } from "../connection/Client";
 import { Channel } from "./Channel";
-import { CreateOutput } from "../connection/Output";
+import { CreateOutput, DeleteOutput, UpdateOutput } from "../connection/Output";
+import { removeArrayItem } from "../utils/removeArrayItem";
 
 export class Entity<T extends Record<string, any> = Record<string, any>> extends EventEmitter {
+    static generateId(entity: Entity, client?: Client): string {
+        return client && client.ownsEntity(entity) ? entity.key : entity.id;
+    }
+
+    static generateCreateOutput(entity: Entity, client?: Client): CreateOutput {
+        return {
+            action: "create",
+            channelId: entity.channel.id,
+            params: {
+                values: entity.state,
+                entityId: Entity.generateId(entity, client),
+            }
+        };
+    }
+
+    static generateDeleteOutput(entity: Entity, client?: Client): DeleteOutput {
+        return {
+            action: "delete",
+            channelId: entity.channel.id,
+            params: {
+                entityId: Entity.generateId(entity, client),
+            }
+        };
+    }
+
+    static generateUpdateOutput<T extends Record<string, any> = Record<string, any>>(entity: Entity<T>, values: Partial<T>, client?: Client): UpdateOutput {
+        return {
+            action: "update",
+            channelId: entity.channel.id,
+            params: {
+                values,
+                entityId: Entity.generateId(entity, client),
+            }
+        };
+    }
+
     public readonly id = UUID();
 
     public get active() {
@@ -18,34 +55,15 @@ export class Entity<T extends Record<string, any> = Record<string, any>> extends
     constructor(public readonly channel: Channel, initialState: Partial<T> = {}, public readonly owner?: Client, public readonly key = UUID()) {
         super();
 
-        this.state = {...initialState};
+        this.state = { ...initialState };
 
         if (owner) {
-            owner.entities[key] = this;
-
-            const confirmationResponse: CreateOutput = {
-                action: "create",
-                channelId: channel.id,
-                params: {
-                    entityId: key,
-                    values: this.state
-                }
-            };
-            
-            owner.send(confirmationResponse);
+            owner.entities.push(this);
+            owner.send(Entity.generateCreateOutput(this, owner));
         }
 
-        const output: CreateOutput = {
-            action: "create",
-            channelId: channel.id,
-            params: {
-                entityId: this.id,
-                values: this.state
-            }
-        };
-        
         this.channel.entities.push(this);
-        this.channel.broadcast(output, this.owner);
+        this.channel.broadcast(Entity.generateCreateOutput(this), owner);
         this.channel.emit("createEntity", { entity: this });
     }
 
@@ -54,37 +72,18 @@ export class Entity<T extends Record<string, any> = Record<string, any>> extends
             this.state[key] = values[key];
         }
 
-        this.channel.broadcast({
-            action: "update",
-            channelId: this.channel.id,
-            params: {
-                entityId: this.id,
-                values
-            }
-        }, this.owner);
+        this.channel.broadcast(Entity.generateUpdateOutput(this, values), this.owner);
     }
 
     delete() {
         this._active = false;
 
-        this.channel.broadcast({
-            action: "delete",
-            channelId: this.channel.id,
-            params: {
-                entityId: this.id
-            }
-        }, this.owner);
+        this.channel.broadcast(Entity.generateDeleteOutput(this), this.owner);
+        this.owner?.send(Entity.generateDeleteOutput(this, this.owner));
 
-        this.owner?.send({
-            action: "delete",
-            channelId: this.channel.id,
-            params: {
-                entityId: this.key
-            }
-        });
+        if (this.owner) removeArrayItem(this.owner.entities, this);
+        removeArrayItem(this.channel.entities, this);
 
-        delete this.owner?.entities[this.key];
-        
         this.emit("delete");
         this.channel.emit("deleteEntity", { entity: this });
 

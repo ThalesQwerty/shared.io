@@ -14,6 +14,7 @@ export class Channel extends EventEmitter {
         super();
 
         server.channels.push(this);
+        server.emit("createChannel", { channel: this });
     }
 
     broadcast(message: Output, origin?: Client) {
@@ -38,22 +39,32 @@ export class Channel extends EventEmitter {
 
             this.emit("join", { client });
             return true;
-        }      
+        }
 
         return false;
     }
 
-    removeClient(client: Client) {
-        const clientIndex = this.clients.findIndex(ws => ws === client);
+    removeClient(client: Client, reason?: string) {
+        const clientIndex = this.clients.indexOf(client);
         if (clientIndex >= 0) {
             this.clients.splice(clientIndex, 1);
 
             client.send({
                 action: "leave",
-                channelId: this.id
+                channelId: this.id,
+                params: {
+                    reason
+                }
             });
 
             this.emit("leave", { client });
+
+            for (const entity of client.entities) {
+                if (entity.channel === this) {
+                    entity.emit("ownerLeave", { reason });
+                }
+            }
+
             return true;
         }
 

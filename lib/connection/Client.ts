@@ -106,6 +106,10 @@ export class Client extends EventEmitter {
         return this.entities.find(entity => entity.key === entityKey);
     }
 
+    findOwnedEntitiesByChannel(channel: Channel) {
+        return this.entities.filter(entity => entity.channel === channel);
+    }
+
     isInChannel(channel: Channel) {
         return !!this.channels.includes(channel);
     }

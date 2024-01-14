@@ -28,6 +28,16 @@ export class Channel extends EventEmitter {
         });
     }
 
+    delete() {
+        for (const client of this.clients) {
+            this.removeClient(client);
+        }
+
+        for (const entity of this.entities) {
+            entity.delete();
+        }
+    } 
+
     addClient(client: Client) {
         if (!this.clients.includes(client)) {
             this.clients.push(client);
@@ -69,11 +79,5 @@ export class Channel extends EventEmitter {
         }
 
         return false;
-    }
-
-    delete() {
-        for (const client of this.clients) {
-            this.removeClient(client);
-        }
     }
 }

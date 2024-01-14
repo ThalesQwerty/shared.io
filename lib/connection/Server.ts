@@ -4,12 +4,27 @@ import { EventEmitter } from "node:events";
 import { Input } from "./Input";
 import { Channel } from "../models/Channel";
 import { Client } from "./Client";
+import { TypedEmitter } from "tiny-typed-emitter";
+import { StartServerEvent, StopServerEvent } from "../events/ServerEvent";
+import { ConnectClientEvent, DisconnectClientEvent, InputClientEvent, MessageClientEvent } from "../events/ClientEvent";
+import { CreateChannelEvent, DeleteChannelEvent } from "../events/ChannelEvent";
 
 export interface ServerConfig {
     port: number
 }
 
-export class Server extends EventEmitter {
+export class Server extends TypedEmitter<{
+    start: StartServerEvent,
+    stop: StopServerEvent,
+
+    connect: ConnectClientEvent,
+    disconnect: DisconnectClientEvent,
+    input: InputClientEvent,
+    message: MessageClientEvent,
+
+    createChannel: CreateChannelEvent,
+    deleteChannel: DeleteChannelEvent,
+}> {
     clients: Client[] = [];
     channels: Channel[] = [];
 
@@ -35,7 +50,9 @@ export class Server extends EventEmitter {
 
         this.wss.on("close", () => {
             this.stop();
-        })
+        });
+
+        this.emit("start", { server: this });
 
         return this;
     }
@@ -47,7 +64,7 @@ export class Server extends EventEmitter {
         this.wss?.close();
         this.wss?.removeAllListeners();
 
-        this.emit("stop", {});
+        this.emit("stop", { server: this });
 
         return this;
     }

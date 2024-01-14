@@ -12,9 +12,7 @@ export interface JoinOutput extends BaseOutput {
 
 export interface LeaveOutput extends BaseOutput {
     action: "leave",
-    params: {
-        reason?: string
-    }
+    params?: undefined
 }
 
 export interface CreateOutput extends BaseOutput {

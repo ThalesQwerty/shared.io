@@ -5,8 +5,18 @@ import { Server } from "../connection/Server";
 import { Client } from "../connection/Client";
 import { Output } from "../connection/Output";
 import { Entity } from "./Entity";
+import { TypedEmitter } from "tiny-typed-emitter";
+import { DeleteChannelEvent, JoinChannelEvent, LeaveChannelEvent } from "../events/ChannelEvent";
+import { CreateEntityEvent, DeleteEntityEvent } from "../events/EntityEvent";
 
-export class Channel extends EventEmitter {
+export class Channel extends TypedEmitter<{
+    delete: DeleteChannelEvent,
+    join: JoinChannelEvent,
+    leave: LeaveChannelEvent,
+
+    createEntity: CreateEntityEvent,
+    deleteEntity: DeleteEntityEvent
+}> {
     public readonly clients: Client[] = [];
     public readonly entities: Entity[] = [];
 
@@ -36,6 +46,8 @@ export class Channel extends EventEmitter {
         for (const entity of this.entities) {
             entity.delete();
         }
+
+        this.emit("delete", { channel: this });
     } 
 
     addClient(client: Client) {
@@ -47,14 +59,14 @@ export class Channel extends EventEmitter {
                 channelId: this.id
             });
 
-            this.emit("join", { client });
+            this.emit("join", { client, channel: this });
             return true;
         }
 
         return false;
     }
 
-    removeClient(client: Client, reason?: string) {
+    removeClient(client: Client) {
         const clientIndex = this.clients.indexOf(client);
         if (clientIndex >= 0) {
             this.clients.splice(clientIndex, 1);
@@ -62,18 +74,9 @@ export class Channel extends EventEmitter {
             client.send({
                 action: "leave",
                 channelId: this.id,
-                params: {
-                    reason
-                }
             });
 
-            this.emit("leave", { client });
-
-            for (const entity of client.entities) {
-                if (entity.channel === this) {
-                    entity.emit("ownerLeave", { reason });
-                }
-            }
+            this.emit("leave", { client, channel: this });
 
             return true;
         }

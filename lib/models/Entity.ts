@@ -1,12 +1,16 @@
 import { v4 as UUID } from "uuid";
-import { EventEmitter } from "node:events";
 
 import { Client } from "../connection/Client";
 import { Channel } from "./Channel";
 import { CreateOutput, DeleteOutput, UpdateOutput } from "../connection/Output";
 import { removeArrayItem } from "../utils/removeArrayItem";
+import { TypedEmitter } from "tiny-typed-emitter";
+import { DeleteEntityEvent, UpdateEntityEvent } from "../events/EntityEvent";
 
-export class Entity<T extends Record<string, any> = Record<string, any>> extends EventEmitter {
+export class Entity<T extends Record<string, any> = Record<string, any>> extends TypedEmitter<{
+    delete: DeleteEntityEvent,
+    update: UpdateEntityEvent
+}> {
     static generateId(entity: Entity, client?: Client): string {
         return client && client.ownsEntity(entity) ? entity.key : entity.id;
     }
@@ -72,6 +76,7 @@ export class Entity<T extends Record<string, any> = Record<string, any>> extends
             this.state[key] = values[key];
         }
 
+        this.emit("update", { entity: this, values });
         this.channel.broadcast(Entity.generateUpdateOutput(this, values), this.owner);
     }
 
@@ -84,7 +89,7 @@ export class Entity<T extends Record<string, any> = Record<string, any>> extends
         if (this.owner) removeArrayItem(this.owner.entities, this);
         removeArrayItem(this.channel.entities, this);
 
-        this.emit("delete");
+        this.emit("delete", { entity: this });
         this.channel.emit("deleteEntity", { entity: this });
 
         const channelIndex = this.channel.entities.indexOf(this);

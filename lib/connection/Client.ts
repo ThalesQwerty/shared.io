@@ -5,8 +5,14 @@ import { Output } from "./Output";
 import { Input } from "./Input";
 import { Entity } from "../models/Entity";
 import { Server } from "./Server";
+import { TypedEmitter } from "tiny-typed-emitter";
+import { DisconnectClientEvent, InputClientEvent, MessageClientEvent } from "../events/ClientEvent";
 
-export class Client extends EventEmitter {
+export class Client extends TypedEmitter<{
+    disconnect: DisconnectClientEvent,
+    input: InputClientEvent,
+    message: MessageClientEvent,
+}> {
     /**
      * List of channels this client is currently in
      */
@@ -27,7 +33,7 @@ export class Client extends EventEmitter {
             this.channels.splice(0, this.channels.length);
     
             server.emit("disconnect", { client: this });
-            this.emit("disconnect");
+            this.emit("disconnect", { client: this });
     
             const index = server.clients.indexOf(this);
             if (index >= 0) server.clients.splice(index, 1);
@@ -38,20 +44,20 @@ export class Client extends EventEmitter {
                 const input = JSON.parse(data.toString()) as Input;
 
                 server.emit("input", { input, client: this });
-                this.emit("input", { input });
+                this.emit("input", { input, client: this });
 
                 const isInputValid = this.receive(input);
 
                 if (!isInputValid) {
                     server.emit("message", { message: input, client: this });
-                    this.emit("message", { message: input });
+                    this.emit("message", { message: input, client: this });
                 }
             } catch (error) {
                 console.error(error);
             }
         });
 
-        server.emit("connection", { client: this});
+        server.emit("connect", { client: this });
         server.clients.push(this);
     }
 

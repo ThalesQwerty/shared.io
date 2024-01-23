@@ -1,7 +1,7 @@
 export interface BaseOutput {
     action: string;
     channelId: string;
-    outputId?: string;
+    threadId?: string;
     params?: Record<string, any>
 }
 

@@ -1,10 +1,8 @@
 import { WebSocketServer } from "ws";
-import { EventEmitter } from "node:events";
+import { TypedEmitter } from "tiny-typed-emitter";
 
-import { Input } from "./Input";
 import { Channel } from "../models/Channel";
 import { Client } from "./Client";
-import { TypedEmitter } from "tiny-typed-emitter";
 import { StartServerEvent, StopServerEvent } from "../events/ServerEvent";
 import { ConnectClientEvent, DisconnectClientEvent, InputClientEvent, MessageClientEvent } from "../events/ClientEvent";
 import { CreateChannelEvent, DeleteChannelEvent } from "../events/ChannelEvent";
@@ -69,7 +67,6 @@ export class Server extends TypedEmitter<{
         return this;
     }
 
-    
     public findOrCreateChannel(id: string) {
         return this.channels.find(channel => channel.id === id) ?? this.createChannel(id);
     }

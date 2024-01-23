@@ -1,7 +1,7 @@
 export interface BaseInput {
     action: string;
     channelId: string;
-    inputId: string;
+    threadId?: string;
     params?: Record<string, any>
 }
 

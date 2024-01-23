@@ -1,4 +1,5 @@
 import { Server } from "../../lib/connection/Server";
+import { Channel } from "../../lib/models/Channel";
 
 const server = new Server({ port: 3000 });
 

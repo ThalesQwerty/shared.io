@@ -19,6 +19,7 @@ export interface CreateOutput extends BaseOutput {
     action: "create",
     params: {
         entityId: string,
+        type: string,
         values: Record<string, any>
     }
 };

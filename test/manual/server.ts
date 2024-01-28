@@ -1,7 +1,17 @@
 import { Server } from "../../lib/connection/Server";
 import { Channel } from "../../lib/models/Channel";
 
-const server = new Server({ port: 3000 });
+const server = new Server();
+
+server.define("Square", {
+    props: {
+        position: {
+            x: 0,
+            y: 0
+        },
+        color: "gray"
+    }
+});
 
 server.on("createChannel", ({ channel }) => {
     channel.on("leave", (event: any) => {
@@ -9,6 +19,6 @@ server.on("createChannel", ({ channel }) => {
             entity.delete();
         }
     });
-}); 
+});
 
-server.start();
+server.listen(3000);

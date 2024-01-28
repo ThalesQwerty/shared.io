@@ -19,6 +19,7 @@ export interface CreateInput extends BaseInput {
     action: "create",
     params: {
         entityId: string,
+        type: string,
         values: Record<string, any>
     }
 };

@@ -92,7 +92,11 @@ export class Client extends TypedEmitter<{
             
             case "create": {
                 if (!entity) {
-                    this.createEntity(channel, input.params.values, input.params.entityId);
+                    const newEntity = this.createEntity(channel, input.params.type, input.params.values, input.params.entityId);
+
+                    if (!newEntity) {
+                        // TO-DO
+                    }
                 }
                 break;
             }
@@ -147,8 +151,12 @@ export class Client extends TypedEmitter<{
         return success;
     }
 
-    createEntity<T extends Record<string, any>>(channel: Channel, values: Partial<T>, key?: string) {
-        return new Entity<T>(channel, values, this, key);
+    /**
+     * Attempts to create a new entity as this client
+     */
+    createEntity(channel: Channel, type: string, values: Record<string, any>, key?: string): Entity | undefined {
+        const entity = new Entity(channel, type, values, this, key);
+        if (entity.active) return entity;
     }
 
     deleteEntity(entity: Entity) {

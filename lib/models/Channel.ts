@@ -27,6 +27,11 @@ export class Channel extends TypedEmitter<{
         server.emit("createChannel", { channel: this });
     }
 
+    createEntity<EntityType extends string, Values extends Record<string, any>>(type: EntityType, initialState: Partial<Values> = {}, owner?: Client, key: string = UUID()) {
+        const entity = new Entity<Values, EntityType>(this, type, initialState, owner, key);
+        if (entity.active) return entity;
+    }
+
     broadcast(message: Output, origin?: Client) {
         this.clients.forEach(client => {
             if (client !== origin) {

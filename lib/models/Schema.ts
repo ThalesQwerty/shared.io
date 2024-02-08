@@ -1,9 +1,12 @@
 import { Client } from "../connection/Client"
 import { Entity } from "./Entity"
+import { Property, PropertyRecord } from "./Property"
 
 export interface ServerSchema {
     entities: Record<string, EntitySchema>
 }
+
+export type SchemaProperty = string | number | boolean | null | any[] | Record<string | number | symbol, any> | ((client?: Client) => any);
 
 export interface EntitySchema<EntityType extends string = string, Values extends Record<string, any> = Record<string, any>> {
     type: EntityType,
@@ -11,27 +14,22 @@ export interface EntitySchema<EntityType extends string = string, Values extends
     /**
      * Define this entity's properties and its default values
      */
-    props: Values,
+    props: {
+        [Key in keyof Values]: SchemaProperty & 
+            (Values[Key] extends Property<infer T, any> ? (
+                Values[Key] extends Record<string, never> ? Values[Key] : Property<T, PropertyRecord<Values>>
+            ) : Values[Key] extends Property<infer U, any>["get"] ? 
+                Property<U, PropertyRecord<Omit<Values, Key>>>["get"] 
+            : Values[Key])
+    },
 
     /**
      * Code for initializing this entity. Executed right before creation.
      */
-    init?: (params: { entity: Entity<Values, EntityType> }) => void
+    init?: (this: PropertyRecord<Values>, entity: Entity<PropertyRecord<Values>, EntityType>) => void
 
     /**
      * Executes once every server tick
      */
-    tick?: (params: { entity: Entity<Values, EntityType> }) => void
-
-    /**
-     * Defines how this entity's properties will be seem by other clients besides the owner
-     */
-    view?: (params: { entity: Entity<Values, EntityType>, values: Partial<Values>, client: Client }) => Partial<Values>
-
-    /**
-     * Validation rules for the property values
-     */
-    rules?: {
-        [Key in keyof Values]?: (params: { entity: Entity<Values, EntityType>, oldValue: Values[Key], newValue: Values[Key], client: Client }) => Values[Key] | undefined | void;
-    }
+    tick?: (this: PropertyRecord<Values>, entity: Entity<PropertyRecord<Values>, EntityType>) => void
 }

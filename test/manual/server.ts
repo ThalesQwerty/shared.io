@@ -1,5 +1,6 @@
 import { Server } from "../../lib/connection/Server";
 import { Channel } from "../../lib/models/Channel";
+import { readonly, secret } from "../../lib/models/Property";
 
 const server = new Server();
 
@@ -9,7 +10,7 @@ server.define("Square", {
             x: 0,
             y: 0
         },
-        color: "gray"
+        color: "#ffffff"
     }
 });
 

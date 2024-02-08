@@ -6,7 +6,7 @@ import { CreateOutput, DeleteOutput, UpdateOutput } from "../connection/Output";
 import { removeArrayItem } from "../utils/removeArrayItem";
 import { TypedEmitter } from "tiny-typed-emitter";
 import { DeleteEntityEvent, UpdateEntityEvent } from "../events/EntityEvent";
-
+import { Property, getPropertyValue } from "./Property";
 export class Entity<Values extends Record<string, any> = Record<string, any>, Type extends string = string> extends TypedEmitter<{
     delete: DeleteEntityEvent<Type, Values>,
     update: UpdateEntityEvent<Type, Values>
@@ -70,10 +70,10 @@ export class Entity<Values extends Record<string, any> = Record<string, any>, Ty
         }
         
         for (const key in this.schema.props) {
-            (this.state as any)[key] = initialState[key] ?? this.schema.props[key];
+            (this.state as any)[key] = initialState[key] ?? getPropertyValue(this.schema.props[key]);
         }
 
-        this.schema?.init?.({ entity: this });
+        this.schema?.init?.call(this.state, this);
 
         if (this.active === false) return;
         this._active = true;

@@ -6,7 +6,6 @@ import { Client } from "./Client";
 import { StartServerEvent, StopServerEvent } from "../events/ServerEvent";
 import { ConnectClientEvent, DisconnectClientEvent, InputClientEvent, MessageClientEvent } from "../events/ClientEvent";
 import { CreateChannelEvent, DeleteChannelEvent } from "../events/ChannelEvent";
-import { Entity } from "../models/Entity";
 import { ServerSchema, EntitySchema } from "../models/Schema";
 export class Server extends TypedEmitter<{
     start: StartServerEvent,

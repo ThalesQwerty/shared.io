@@ -10,7 +10,10 @@ server.define("Square", {
             x: 0,
             y: 0
         },
-        color: "#ffffff"
+        color: readonly("#ffffff"),
+    },
+    init() {
+        this.color;
     }
 });
 

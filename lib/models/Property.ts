@@ -1,6 +1,6 @@
 import { Client } from "../connection/Client";
 
-export type PropertyValue<Type> = Type extends Property<infer T> ? PropertyValue<T> : Type extends Property<infer U>["get"] ? PropertyValue<U> : Type;
+export type PropertyValue<Type> = Type extends Property<infer T> ? PropertyValue<T> : Type extends (...params: any) => infer R ? PropertyValue<R> : Type;
 
 export type PropertyRecord<Schema extends Record<string, any>> = {
     [Key in keyof Schema]: PropertyValue<Schema[Key]>;
@@ -11,23 +11,23 @@ export interface Property<Type = any, Values extends Record<string, any> = Recor
     set?: (this: Values, newValue: Type | null, client?: Client) => Type | null | void;
 }
 
-function isProperty(value: any): boolean {
-    if (!value || typeof value !== "object") return false;
+export function getProperty(value: any): Property|null {
+    if (!value || typeof value !== "object") return null;
 
     const keys = Object.keys(value);
     const propertyKeys: (keyof Property)[] = ["value", "get", "set"];
 
-    return keys.every(key => propertyKeys.includes(key as any))
+    return keys.every(key => propertyKeys.includes(key as any)) ? value as Property : null;
 }
 
 export function getPropertyValue(property: any) {
-    if (isProperty(property)) return (property as Property).value;
+    if (getProperty(property)) return (property as Property).value;
     return property;
 }
 
 export const PropertyPresets = {
     readonly<T>(value: T | null): Property<PropertyValue<T>> {
-        return isProperty(value) ? 
+        return getProperty(value) ? 
             {
                 ...value,
                 set() {}
@@ -38,7 +38,7 @@ export const PropertyPresets = {
             }
     },
     secret<T>(value: T | null): Property<PropertyValue<T>> {
-        return isProperty(value) ? 
+        return getProperty(value) ? 
             {
                 ...value,
                 get() {}

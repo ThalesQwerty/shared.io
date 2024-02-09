@@ -37,6 +37,7 @@
         "lodash": "^4.17.21",
         "tiny-typed-emitter": "^2.1.0",
         "uuid": "^8.3.2",
+        "watched-object": "1.1.4",
         "ws": "^8.8.1"
     }
 }

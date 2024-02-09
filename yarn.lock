@@ -2839,6 +2839,14 @@ walker@^1.0.8:
   dependencies:
     makeerror "1.0.12"
 
+watched-object@1.1.4:
+  version "1.1.4"
+  resolved "https://registry.yarnpkg.com/watched-object/-/watched-object-1.1.4.tgz#d6269cacf89f46269939530b496ab395c18fa29c"
+  integrity sha512-daG7Xtn01EIpCqduIgoFj27CkmUzVAplFBAaBTv2oIFLeZJmxom4SkX5lGDFU3DSGkLkYeYr8QKTSTuJE8KnvA==
+  dependencies:
+    jest "^28.1.3"
+    tiny-typed-emitter "^2.1.0"
+
 which@^2.0.1:
   version "2.0.2"
   resolved "https://registry.yarnpkg.com/which/-/which-2.0.2.tgz#7c6a8dd0a636a0327e10b59c9286eee93f3f51b1"
